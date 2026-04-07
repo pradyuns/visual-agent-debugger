@@ -1,0 +1,139 @@
+{
+  "trace_id": "trace_handoff_001",
+  "name": "Multi-agent triage and resolution",
+  "tags": ["handoff", "agents-sdk", "multi-agent"],
+  "metadata": { "environment": "staging" },
+  "spans": [
+    {
+      "span_id": "span_triage_001",
+      "trace_id": "trace_handoff_001",
+      "started_at": 1700000000000,
+      "ended_at": 1700000010000,
+      "span_data": {
+        "type": "agent",
+        "name": "TriageAgent",
+        "input": { "ticket": "My billing charge looks wrong" },
+        "output": { "decision": "escalate to billing agent" }
+      }
+    },
+    {
+      "span_id": "span_triage_llm_001",
+      "trace_id": "trace_handoff_001",
+      "parent_id": "span_triage_001",
+      "started_at": 1700000000200,
+      "ended_at": 1700000002000,
+      "span_data": {
+        "type": "response",
+        "model": "gpt-4o-mini",
+        "input": [
+          { "role": "system", "content": "You are a triage agent. Classify tickets." },
+          { "role": "user", "content": "My billing charge looks wrong" }
+        ],
+        "response": {
+          "choices": [
+            {
+              "message": {
+                "role": "assistant",
+                "content": "This is a billing issue. Escalating to billing agent."
+              },
+              "finish_reason": "stop"
+            }
+          ]
+        },
+        "usage": { "input_tokens": 38, "output_tokens": 15 }
+      }
+    },
+    {
+      "span_id": "span_guardrail_001",
+      "trace_id": "trace_handoff_001",
+      "parent_id": "span_triage_001",
+      "started_at": 1700000002100,
+      "ended_at": 1700000002300,
+      "span_data": {
+        "type": "guardrail",
+        "guardrail_name": "content_policy",
+        "outcome": "pass",
+        "details": { "reason": "no policy violations detected" }
+      }
+    },
+    {
+      "span_id": "span_handoff_001",
+      "trace_id": "trace_handoff_001",
+      "parent_id": "span_triage_001",
+      "started_at": 1700000002400,
+      "ended_at": 1700000002500,
+      "span_data": {
+        "type": "handoff",
+        "from_agent": "TriageAgent",
+        "to_agent": "BillingAgent",
+        "reason": "billing dispute requires specialist"
+      }
+    },
+    {
+      "span_id": "span_billing_001",
+      "trace_id": "trace_handoff_001",
+      "parent_id": "span_triage_001",
+      "started_at": 1700000002600,
+      "ended_at": 1700000009800,
+      "span_data": {
+        "type": "agent",
+        "name": "BillingAgent",
+        "input": { "ticket": "My billing charge looks wrong", "context": "triaged" },
+        "output": { "resolution": "Refund issued for $12.99" }
+      }
+    },
+    {
+      "span_id": "span_billing_llm_001",
+      "trace_id": "trace_handoff_001",
+      "parent_id": "span_billing_001",
+      "started_at": 1700000002800,
+      "ended_at": 1700000005000,
+      "span_data": {
+        "type": "response",
+        "model": "gpt-4o",
+        "input": [
+          { "role": "system", "content": "You are a billing specialist." },
+          { "role": "user", "content": "Review the billing dispute and issue a refund if warranted." }
+        ],
+        "response": {
+          "choices": [
+            {
+              "message": {
+                "role": "assistant",
+                "content": "I've reviewed the charge. A refund of $12.99 has been issued."
+              },
+              "finish_reason": "stop"
+            }
+          ]
+        },
+        "usage": { "input_tokens": 62, "output_tokens": 30 }
+      }
+    },
+    {
+      "span_id": "span_billing_tool_001",
+      "trace_id": "trace_handoff_001",
+      "parent_id": "span_billing_001",
+      "started_at": 1700000005100,
+      "ended_at": 1700000007000,
+      "span_data": {
+        "type": "function",
+        "name": "issue_refund",
+        "input": { "amount": 12.99, "currency": "USD", "reason": "overcharge" },
+        "output": { "refund_id": "ref_abc123", "status": "processed" }
+      }
+    },
+    {
+      "span_id": "span_billing_tool_002",
+      "trace_id": "trace_handoff_001",
+      "parent_id": "span_billing_001",
+      "started_at": 1700000007100,
+      "ended_at": 1700000009700,
+      "span_data": {
+        "type": "function",
+        "name": "send_confirmation_email",
+        "input": { "template": "refund_confirmation", "refund_id": "ref_abc123" },
+        "output": { "email_id": "email_xyz789", "sent": true }
+      }
+    }
+  ]
+}
