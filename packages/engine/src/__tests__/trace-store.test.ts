@@ -51,4 +51,25 @@ describe("LocalTraceStore", () => {
 
     expect(rebuiltList).toHaveLength(1);
   });
+
+  it("serializes concurrent imports so both traces survive indexing", async () => {
+    const dataDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "agent-debugger-"),
+    );
+    tempDirs.push(dataDir);
+    const store = createTraceStore({ dataDir });
+
+    const [first, second] = await Promise.all([
+      store.importTrace(loadFixture(), "canonical-trace-a.json"),
+      store.importTrace(loadFixture(), "canonical-trace-b.json"),
+    ]);
+
+    const list = await store.listTraces();
+
+    expect(first.traceId).not.toBe(second.traceId);
+    expect(list).toHaveLength(2);
+    expect(list.map((trace) => trace.id).sort()).toEqual(
+      [first.traceId, second.traceId].sort(),
+    );
+  });
 });
