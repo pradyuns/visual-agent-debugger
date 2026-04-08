@@ -1,6 +1,16 @@
 import { TraceImportError } from "@agent-debugger/engine";
 
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
+
 export async function parseUploadedJsonFile(file: File) {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new TraceImportError(
+      "file_too_large",
+      `File exceeds the ${MAX_UPLOAD_BYTES / 1024 / 1024} MB upload limit.`,
+      { status: 413 },
+    );
+  }
+
   const raw = await file.text();
 
   try {
