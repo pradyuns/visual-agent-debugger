@@ -1,0 +1,98 @@
+{
+  "trace": {
+    "schemaVersion": 1,
+    "id": "trace_raw_demo",
+    "name": "Canonical raw trace",
+    "framework": "raw",
+    "status": "ok",
+    "startedAt": 1712500000000,
+    "endedAt": 1712500004200,
+    "createdAt": 1712500000000,
+    "importedAt": 1712500004300,
+    "updatedAt": 1712500004300,
+    "rootSpanId": "root_raw_demo",
+    "tags": ["raw", "demo"],
+    "metadata": {
+      "source": "fixture"
+    },
+    "totalTokens": {
+      "input": 240,
+      "output": 78
+    }
+  },
+  "spans": [
+    {
+      "id": "root_raw_demo",
+      "traceId": "trace_raw_demo",
+      "kind": "root",
+      "name": "Canonical import root",
+      "status": "ok",
+      "provenance": "recorded",
+      "startedAt": 1712500000000,
+      "endedAt": 1712500004200,
+      "latencyMs": 4200,
+      "payload": {
+        "kind": "root",
+        "summary": "Fixture root"
+      }
+    },
+    {
+      "id": "agent_raw_demo",
+      "traceId": "trace_raw_demo",
+      "parentSpanId": "root_raw_demo",
+      "kind": "agent",
+      "name": "Answer agent",
+      "status": "ok",
+      "provenance": "recorded",
+      "startedAt": 1712500000100,
+      "endedAt": 1712500004000,
+      "latencyMs": 3900,
+      "payload": {
+        "kind": "agent",
+        "agentName": "Answer agent",
+        "input": {
+          "question": "How do I reset my password?"
+        },
+        "output": {
+          "answer": "Use the account settings page."
+        }
+      }
+    },
+    {
+      "id": "llm_raw_demo",
+      "traceId": "trace_raw_demo",
+      "parentSpanId": "agent_raw_demo",
+      "kind": "llm",
+      "name": "Draft response",
+      "status": "ok",
+      "provenance": "recorded",
+      "startedAt": 1712500000500,
+      "endedAt": 1712500001200,
+      "latencyMs": 700,
+      "payload": {
+        "kind": "llm",
+        "request": {
+          "provider": "openai",
+          "model": "gpt-4.1-mini",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Reset my password"
+            }
+          ]
+        },
+        "response": {
+          "message": "Use the account settings page."
+        },
+        "usage": {
+          "input": 240,
+          "output": 78
+        }
+      }
+    }
+  ],
+  "edges": [],
+  "rawSource": {
+    "fixture": "canonical"
+  }
+}

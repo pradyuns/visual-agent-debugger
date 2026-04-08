@@ -1,0 +1,145 @@
+{
+  "source": "openai-agents-sdk",
+  "version": 1,
+  "trace": {
+    "name": "Billing handoff run",
+    "startedAt": 1712700000000,
+    "endedAt": 1712700008200,
+    "metadata": {
+      "environment": "test"
+    },
+    "tags": ["agents", "handoff"]
+  },
+  "spans": [
+    {
+      "id": "agent_triage",
+      "type": "agent",
+      "name": "Triage Agent",
+      "status": "ok",
+      "startedAt": 1712700000000,
+      "endedAt": 1712700007900,
+      "input": {
+        "message": "I was charged twice"
+      },
+      "output": {
+        "resolution": "handoff to billing"
+      },
+      "metadata": {
+        "agentName": "Triage Agent"
+      }
+    },
+    {
+      "id": "llm_triage",
+      "parentId": "agent_triage",
+      "type": "llm",
+      "name": "Classify ticket",
+      "status": "ok",
+      "startedAt": 1712700000100,
+      "endedAt": 1712700000900,
+      "messages": [
+        {
+          "role": "system",
+          "content": "Route billing questions to the billing specialist."
+        },
+        {
+          "role": "user",
+          "content": "I was charged twice"
+        }
+      ],
+      "model": {
+        "provider": "openai",
+        "name": "gpt-4.1-mini",
+        "temperature": 0,
+        "maxTokens": 200
+      },
+      "output": "Billing issue",
+      "usage": {
+        "input": 154,
+        "output": 32
+      }
+    },
+    {
+      "id": "handoff_billing",
+      "parentId": "agent_triage",
+      "type": "handoff",
+      "name": "Escalate to billing",
+      "status": "ok",
+      "startedAt": 1712700001000,
+      "endedAt": 1712700001200,
+      "handoff": {
+        "fromAgent": "Triage Agent",
+        "toAgent": "Billing Agent",
+        "toSpanId": "agent_billing",
+        "reason": "User reported a duplicate charge."
+      }
+    },
+    {
+      "id": "agent_billing",
+      "parentId": "handoff_billing",
+      "type": "agent",
+      "name": "Billing Agent",
+      "status": "ok",
+      "startedAt": 1712700001300,
+      "endedAt": 1712700007800,
+      "input": {
+        "message": "I was charged twice"
+      },
+      "output": {
+        "resolution": "refund initiated"
+      },
+      "metadata": {
+        "agentName": "Billing Agent"
+      }
+    },
+    {
+      "id": "tool_refund_lookup",
+      "parentId": "agent_billing",
+      "type": "tool",
+      "name": "lookup_refund_policy",
+      "status": "ok",
+      "startedAt": 1712700001500,
+      "endedAt": 1712700002400,
+      "input": {
+        "accountId": "acct_123"
+      },
+      "output": {
+        "eligible": true
+      },
+      "tool": {
+        "name": "lookup_refund_policy",
+        "server": "billing-service"
+      }
+    },
+    {
+      "id": "llm_billing",
+      "parentId": "agent_billing",
+      "type": "llm",
+      "name": "Draft billing response",
+      "status": "ok",
+      "startedAt": 1712700003000,
+      "endedAt": 1712700003600,
+      "messages": [
+        {
+          "role": "system",
+          "content": "Explain the refund process clearly."
+        },
+        {
+          "role": "user",
+          "content": "I was charged twice"
+        }
+      ],
+      "model": {
+        "provider": "openai",
+        "name": "gpt-4.1-mini",
+        "systemPrompt": "Explain the refund process clearly.",
+        "temperature": 0.2,
+        "maxTokens": 300
+      },
+      "output": "I've initiated a refund for the duplicate charge.",
+      "usage": {
+        "input": 198,
+        "output": 61
+      }
+    }
+  ]
+}

@@ -1,29 +1,25 @@
-import type { TraceAdapter, TraceBundle } from "../types/index.js";
-import { validateBundle, detectCycles, validateEdgeRefs } from "../validation/index.js";
-import { deriveLatencies, deriveTotals } from "./normalize.js";
+import type { TraceAdapter, TraceBundle } from "../types";
+import { traceBundleSchema } from "../validation/schema";
+import { TraceImportError } from "../validation/errors";
 
-export const rawAdapter: TraceAdapter = {
-  framework: "raw",
+export class RawTraceAdapter implements TraceAdapter {
+  readonly framework = "raw" as const;
 
   canParse(input: unknown): boolean {
-    if (typeof input !== "object" || input === null) return false;
-    const obj = input as Record<string, unknown>;
-    return (
-      "trace" in obj &&
-      "spans" in obj &&
-      "edges" in obj &&
-      typeof obj["trace"] === "object" &&
-      obj["trace"] !== null &&
-      (obj["trace"] as Record<string, unknown>)["schemaVersion"] === 1
-    );
-  },
+    return traceBundleSchema.safeParse(input).success;
+  }
 
   normalize(input: unknown): TraceBundle {
-    const bundle = validateBundle(input);
-    detectCycles(bundle.spans);
-    validateEdgeRefs(bundle.spans, bundle.edges);
-    const spans = deriveLatencies(bundle.spans);
-    const trace = deriveTotals(bundle.trace, spans);
-    return { ...bundle, trace, spans };
-  },
-};
+    const parsed = traceBundleSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new TraceImportError("invalid_raw_trace", "Invalid canonical trace bundle.", {
+        issues: parsed.error.issues,
+      });
+    }
+
+    return {
+      ...parsed.data,
+      rawSource: parsed.data.rawSource ?? input,
+    };
+  }
+}

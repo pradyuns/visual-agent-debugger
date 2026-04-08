@@ -1,29 +1,11 @@
-# Sensitive — never publish
-implementation-plan.md
-.env
-.env.*
-*.env
-*.secret
-*.pem
-*.key
-
-# Dependencies
-node_modules/
-.pnpm-store/
-
-# Build outputs
-dist/
-.next/
-.turbo/
-
-# Runtime data
-.agent-debugger/
-
-# OS / editor
+node_modules
+.context
+.turbo
+dist
+.next
+coverage
+playwright-report
+test-results
+.agent-debugger
 .DS_Store
-*.swp
-.idea/
-.vscode/
-
-# Local Claude settings (personal overrides)
-.claude/settings.local.json
+*.tsbuildinfo

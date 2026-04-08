@@ -13,33 +13,30 @@ export type SpanKind =
 export type SpanProvenance = "recorded" | "simulated" | "live" | "edited";
 export type EdgeKind = "handoff" | "retry" | "dependency" | "correlation";
 
-export interface LlmRequest {
-  model?: string;
-  messages?: unknown[];
-  tools?: unknown[];
-  temperature?: number;
-  maxTokens?: number;
-  [key: string]: unknown;
-}
-
-export interface LlmResponse {
-  model?: string;
-  choices?: unknown[];
-  content?: unknown;
-  finishReason?: string;
-  [key: string]: unknown;
-}
-
 export interface TokenUsage {
   input: number;
   output: number;
-  total?: number;
+}
+
+export interface LlmRequest {
+  provider: string;
+  model: string;
+  messages: Array<{ role: string; content: string }>;
+  systemPrompt?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+export interface LlmResponse {
+  message?: string;
+  finishReason?: string;
+  output?: unknown;
 }
 
 export interface ToolInfo {
   name: string;
-  description?: string;
-  [key: string]: unknown;
+  server?: string;
+  version?: string;
 }
 
 export type SpanPayload =
@@ -51,50 +48,16 @@ export type SpanPayload =
       response?: LlmResponse;
       usage?: TokenUsage;
     }
-  | { kind: "tool"; tool: ToolInfo; input?: unknown; output?: unknown }
+  | {
+      kind: "tool";
+      tool: ToolInfo;
+      input?: unknown;
+      output?: unknown;
+    }
   | { kind: "handoff"; fromAgent: string; toAgent: string; reason?: string }
   | { kind: "retrieval"; query?: string; results?: unknown[] }
-  | {
-      kind: "guardrail";
-      ruleName?: string;
-      outcome?: string;
-      details?: unknown;
-    }
+  | { kind: "guardrail"; ruleName?: string; outcome?: string; details?: unknown }
   | { kind: "custom"; input?: unknown; output?: unknown; label?: string };
-
-export interface SpanError {
-  message: string;
-  type?: string;
-  stack?: string;
-  code?: string;
-  retryable?: boolean;
-}
-
-export interface SpanRecord {
-  id: string;
-  traceId: string;
-  parentSpanId?: string;
-  kind: SpanKind;
-  name: string;
-  status: SpanStatus;
-  provenance: SpanProvenance;
-  startedAt: number;
-  endedAt?: number;
-  latencyMs?: number;
-  error?: SpanError;
-  stateSnapshot?: Record<string, unknown>;
-  payload: SpanPayload;
-  raw?: unknown;
-}
-
-export interface EdgeRecord {
-  id: string;
-  traceId: string;
-  fromSpanId: string;
-  toSpanId: string;
-  kind: EdgeKind;
-  metadata?: Record<string, unknown>;
-}
 
 export interface TraceRecord {
   schemaVersion: 1;
@@ -110,8 +73,40 @@ export interface TraceRecord {
   rootSpanId: string;
   tags: string[];
   metadata: Record<string, unknown>;
-  totalTokens?: { input: number; output: number };
+  totalTokens?: TokenUsage;
   totalCostUsd?: { input: number; output: number };
+}
+
+export interface SpanRecord {
+  id: string;
+  traceId: string;
+  parentSpanId?: string;
+  kind: SpanKind;
+  name: string;
+  status: SpanStatus;
+  provenance: SpanProvenance;
+  startedAt: number;
+  endedAt?: number;
+  latencyMs?: number;
+  error?: {
+    message: string;
+    type?: string;
+    stack?: string;
+    code?: string;
+    retryable?: boolean;
+  };
+  stateSnapshot?: Record<string, unknown>;
+  payload: SpanPayload;
+  raw?: unknown;
+}
+
+export interface EdgeRecord {
+  id: string;
+  traceId: string;
+  fromSpanId: string;
+  toSpanId: string;
+  kind: EdgeKind;
+  metadata?: Record<string, unknown>;
 }
 
 export interface TraceBundle {
@@ -121,21 +116,6 @@ export interface TraceBundle {
   rawSource?: unknown;
 }
 
-export interface TraceAdapter {
-  framework: TraceFramework;
-  canParse(input: unknown): boolean;
-  normalize(input: unknown): TraceBundle;
-}
-
-export interface TraceListFilters {
-  framework?: TraceFramework;
-  status?: TraceStatus;
-  tag?: string;
-  nameSearch?: string;
-  limit?: number;
-  offset?: number;
-}
-
 export interface TraceSummary {
   id: string;
   name: string;
@@ -143,24 +123,36 @@ export interface TraceSummary {
   status: TraceStatus;
   startedAt: number;
   endedAt?: number;
-  importedAt: number;
+  durationMs?: number;
+  updatedAt: number;
   tags: string[];
-  totalTokens?: { input: number; output: number };
-  spanCount?: number;
-  errorCount?: number;
+  totalTokens?: TokenUsage;
+  totalCostUsd?: { input: number; output: number };
+  spanCount: number;
+  errorCount: number;
 }
 
-export interface TraceBundleWithDerived extends TraceBundle {
-  childrenByParent: Map<string | undefined, SpanRecord[]>;
+export interface TraceListFilters {
+  framework?: TraceFramework;
+  status?: TraceStatus;
+  tag?: string;
+  search?: string;
+}
+
+export interface TraceGraphData {
+  childrenByParent: Record<string, string[]>;
+}
+
+export interface TraceAdapter {
+  framework: TraceFramework;
+  canParse(input: unknown): boolean;
+  normalize(input: unknown): TraceBundle;
 }
 
 export interface TraceStore {
-  importTrace(
-    input: unknown,
-    sourceName: string
-  ): Promise<{ traceId: string }>;
+  importTrace(input: unknown, sourceName: string): Promise<{ traceId: string }>;
   listTraces(filters?: TraceListFilters): Promise<TraceSummary[]>;
-  getTrace(traceId: string): Promise<TraceBundleWithDerived>;
+  getTrace(traceId: string): Promise<TraceBundle>;
   deleteTrace(traceId: string): Promise<void>;
   rebuildIndex(): Promise<void>;
 }

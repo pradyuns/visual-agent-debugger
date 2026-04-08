@@ -1,33 +1,19 @@
 {
   "name": "@agent-debugger/engine",
-  "version": "0.0.1",
   "private": true,
+  "version": "0.0.0",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
+    ".": "./src/index.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "lint": "tsc --noEmit",
-    "test": "vitest run",
-    "clean": "rm -rf dist"
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --root ../.. packages/engine/src/__tests__",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "better-sqlite3": "^11.9.1",
-    "drizzle-orm": "^0.42.0",
-    "ulid": "^3.0.0",
-    "zod": "^3.24.2"
-  },
-  "devDependencies": {
-    "@types/better-sqlite3": "^7.6.12",
-    "@types/node": "^22.14.0",
-    "drizzle-kit": "^0.31.0",
-    "typescript": "^5.8.3",
-    "vitest": "^3.1.1"
+    "ulid": "^3.0.1",
+    "zod": "3.24.4"
   }
 }

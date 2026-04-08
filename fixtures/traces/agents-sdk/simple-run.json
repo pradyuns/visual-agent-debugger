@@ -1,0 +1,82 @@
+{
+  "source": "openai-agents-sdk",
+  "version": 1,
+  "trace": {
+    "name": "Simple password reset run",
+    "startedAt": 1712600000000,
+    "endedAt": 1712600005100,
+    "metadata": {
+      "environment": "test"
+    },
+    "tags": ["agents", "simple"]
+  },
+  "spans": [
+    {
+      "id": "agent_triage",
+      "type": "agent",
+      "name": "Triage Agent",
+      "status": "ok",
+      "startedAt": 1712600000000,
+      "endedAt": 1712600005000,
+      "input": {
+        "message": "I forgot my password"
+      },
+      "output": {
+        "resolution": "send reset steps"
+      },
+      "metadata": {
+        "agentName": "Triage Agent"
+      }
+    },
+    {
+      "id": "llm_triage",
+      "parentId": "agent_triage",
+      "type": "llm",
+      "name": "Classify issue",
+      "status": "ok",
+      "startedAt": 1712600000200,
+      "endedAt": 1712600001200,
+      "messages": [
+        {
+          "role": "system",
+          "content": "Classify support requests."
+        },
+        {
+          "role": "user",
+          "content": "I forgot my password"
+        }
+      ],
+      "model": {
+        "provider": "openai",
+        "name": "gpt-4.1-mini",
+        "systemPrompt": "Classify support requests.",
+        "temperature": 0.1,
+        "maxTokens": 300
+      },
+      "output": "Password reset request",
+      "usage": {
+        "input": 210,
+        "output": 48
+      }
+    },
+    {
+      "id": "tool_policy_lookup",
+      "parentId": "agent_triage",
+      "type": "tool",
+      "name": "lookup_policy",
+      "status": "ok",
+      "startedAt": 1712600001500,
+      "endedAt": 1712600002200,
+      "input": {
+        "policy": "password_reset"
+      },
+      "output": {
+        "steps": ["Verify identity", "Open settings", "Set new password"]
+      },
+      "tool": {
+        "name": "lookup_policy",
+        "server": "local-knowledge"
+      }
+    }
+  ]
+}

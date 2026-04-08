@@ -1,160 +1,170 @@
-import { describe, it, expect } from "vitest";
-import {
-  deriveLatencies,
-  deriveTotals,
-  ensureSingleRoot,
-} from "../adapters/normalize.js";
-import type { SpanRecord, TraceRecord } from "../types/index.js";
+import { normalizeTraceBundle } from "../validation/normalize";
+import { TraceImportError } from "../validation/errors";
+import type { TraceBundle } from "../types";
 
-const baseTrace: TraceRecord = {
-  schemaVersion: 1,
-  id: "trace1",
-  name: "test",
-  framework: "raw",
-  status: "ok",
-  startedAt: 0,
-  createdAt: 0,
-  importedAt: 0,
-  updatedAt: 0,
-  rootSpanId: "span1",
-  tags: [],
-  metadata: {},
-};
-
-function makeSpan(
-  id: string,
-  parentId?: string,
-  overrides: Partial<SpanRecord> = {}
-): SpanRecord {
-  const base = {
-    id,
-    traceId: "trace1",
-    kind: "agent" as const,
-    name: id,
-    status: "ok" as const,
-    provenance: "recorded" as const,
-    startedAt: 1000,
-    endedAt: 2000,
-    payload: { kind: "agent" as const },
-  };
+function createBundle(spans: TraceBundle["spans"], edges: TraceBundle["edges"] = []): TraceBundle {
   return {
-    ...base,
-    ...(parentId !== undefined ? { parentSpanId: parentId } : {}),
-    ...overrides,
-  } as SpanRecord;
+    trace: {
+      schemaVersion: 1,
+      id: "trace_input",
+      name: "Input trace",
+      framework: "raw",
+      status: "ok",
+      startedAt: 100,
+      endedAt: 400,
+      createdAt: 100,
+      importedAt: 100,
+      updatedAt: 100,
+      rootSpanId: spans[0]?.id ?? "missing",
+      tags: [],
+      metadata: {},
+    },
+    spans,
+    edges,
+  };
 }
 
-describe("deriveLatencies", () => {
-  it("derives latencyMs from startedAt and endedAt", () => {
-    const span = makeSpan("s1"); // no latencyMs set — will be absent
-    const result = deriveLatencies([span]);
-    expect(result[0]!.latencyMs).toBe(1000);
-  });
-
-  it("does not overwrite existing latencyMs", () => {
-    const span = makeSpan("s1", undefined, { latencyMs: 999 });
-    const result = deriveLatencies([span]);
-    expect(result[0]!.latencyMs).toBe(999);
-  });
-
-  it("leaves latencyMs undefined when endedAt is missing", () => {
-    // Construct directly without endedAt to satisfy exactOptionalPropertyTypes
-    const span: SpanRecord = {
-      id: "s1",
-      traceId: "trace1",
-      kind: "agent",
-      name: "s1",
-      status: "ok",
-      provenance: "recorded",
-      startedAt: 1000,
-      payload: { kind: "agent" },
-    };
-    const result = deriveLatencies([span]);
-    expect(result[0]!.latencyMs).toBeUndefined();
-  });
-});
-
-describe("deriveTotals", () => {
-  it("sums token usage from llm spans", () => {
-    const spans: SpanRecord[] = [
-      {
-        ...makeSpan("s1"),
-        kind: "llm",
-        payload: {
-          kind: "llm",
-          request: { model: "gpt-4o" },
-          usage: { input: 100, output: 50 },
+describe("normalizeTraceBundle", () => {
+  it("creates a synthetic root when a bundle has multiple top-level spans", () => {
+    const normalized = normalizeTraceBundle(
+      createBundle([
+        {
+          id: "a",
+          traceId: "trace_input",
+          kind: "agent",
+          name: "Agent A",
+          status: "ok",
+          provenance: "recorded",
+          startedAt: 100,
+          endedAt: 200,
+          payload: { kind: "agent", agentName: "Agent A" },
         },
-      },
-      {
-        ...makeSpan("s2"),
-        kind: "llm",
-        payload: {
-          kind: "llm",
-          request: { model: "gpt-4o" },
-          usage: { input: 200, output: 75 },
+        {
+          id: "b",
+          traceId: "trace_input",
+          kind: "agent",
+          name: "Agent B",
+          status: "ok",
+          provenance: "recorded",
+          startedAt: 210,
+          endedAt: 320,
+          payload: { kind: "agent", agentName: "Agent B" },
         },
-      },
-    ];
-    const result = deriveTotals(baseTrace, spans);
-    expect(result.totalTokens).toEqual({ input: 300, output: 125 });
+      ]),
+      { traceId: "normalized_trace", importedAt: 999 },
+    );
+
+    expect(normalized.trace.rootSpanId).toMatch(/^root_/);
+    expect(normalized.spans).toHaveLength(3);
+    expect(
+      normalized.spans.filter((span) => span.parentSpanId === normalized.trace.rootSpanId),
+    ).toHaveLength(2);
   });
 
-  it("does not overwrite existing totalTokens", () => {
-    const spans: SpanRecord[] = [
-      {
-        ...makeSpan("s1"),
-        kind: "llm",
-        payload: {
-          kind: "llm",
-          request: {},
-          usage: { input: 100, output: 50 },
+  it("derives total token usage from llm spans", () => {
+    const normalized = normalizeTraceBundle(
+      createBundle([
+        {
+          id: "root",
+          traceId: "trace_input",
+          kind: "root",
+          name: "Root",
+          status: "ok",
+          provenance: "recorded",
+          startedAt: 100,
+          endedAt: 300,
+          payload: { kind: "root" },
         },
-      },
-    ];
-    const traceWithTotals = {
-      ...baseTrace,
-      totalTokens: { input: 999, output: 999 },
-    };
-    const result = deriveTotals(traceWithTotals, spans);
-    expect(result.totalTokens).toEqual({ input: 999, output: 999 });
+        {
+          id: "llm",
+          traceId: "trace_input",
+          parentSpanId: "root",
+          kind: "llm",
+          name: "Draft",
+          status: "ok",
+          provenance: "recorded",
+          startedAt: 120,
+          endedAt: 200,
+          payload: {
+            kind: "llm",
+            request: {
+              provider: "openai",
+              model: "gpt-4.1-mini",
+              messages: [],
+            },
+            usage: { input: 12, output: 4 },
+          },
+        },
+      ]),
+      { traceId: "normalized_trace", importedAt: 999 },
+    );
+
+    expect(normalized.trace.totalTokens).toEqual({ input: 12, output: 4 });
   });
 
-  it("leaves totalTokens undefined when no llm spans present", () => {
-    const result = deriveTotals(baseTrace, [makeSpan("s1")]);
-    expect(result.totalTokens).toBeUndefined();
+  it("rejects parent cycles", () => {
+    expect(() =>
+      normalizeTraceBundle(
+        createBundle([
+          {
+            id: "a",
+            traceId: "trace_input",
+            parentSpanId: "b",
+            kind: "agent",
+            name: "A",
+            status: "ok",
+            provenance: "recorded",
+            startedAt: 100,
+            endedAt: 200,
+            payload: { kind: "agent", agentName: "A" },
+          },
+          {
+            id: "b",
+            traceId: "trace_input",
+            parentSpanId: "a",
+            kind: "agent",
+            name: "B",
+            status: "ok",
+            provenance: "recorded",
+            startedAt: 120,
+            endedAt: 220,
+            payload: { kind: "agent", agentName: "B" },
+          },
+        ]),
+        { traceId: "normalized_trace", importedAt: 999 },
+      ),
+    ).toThrow(TraceImportError);
   });
-});
 
-describe("ensureSingleRoot", () => {
-  it("returns the existing single root unchanged", () => {
-    const spans = [
-      makeSpan("root"),
-      makeSpan("child", "root"),
-      makeSpan("grandchild", "child"),
-    ];
-    const { spans: result, rootSpanId } = ensureSingleRoot("trace1", spans);
-    expect(rootSpanId).toBe("root");
-    expect(result).toHaveLength(3);
-  });
-
-  it("creates a synthetic root when multiple top-level spans exist", () => {
-    const spans = [makeSpan("a"), makeSpan("b"), makeSpan("c")];
-    const { spans: result, rootSpanId } = ensureSingleRoot("trace1", spans);
-    expect(result).toHaveLength(4);
-    const root = result.find((s) => s.id === rootSpanId);
-    expect(root).toBeDefined();
-    expect(root!.kind).toBe("root");
-    expect(root!.provenance).toBe("simulated");
-    // All originals should now have the synthetic root as parent
-    const nonRoot = result.filter((s) => s.id !== rootSpanId);
-    expect(nonRoot.every((s) => s.parentSpanId === rootSpanId)).toBe(true);
-  });
-
-  it("creates a synthetic root when spans array is empty", () => {
-    // Edge: if all spans have a broken parent chain treated as roots
-    const { spans: result } = ensureSingleRoot("trace1", []);
-    // Either unchanged or 1 synthetic root
-    expect(result.length).toBeGreaterThanOrEqual(0);
+  it("rejects secondary edges that reference missing spans", () => {
+    expect(() =>
+      normalizeTraceBundle(
+        createBundle(
+          [
+            {
+              id: "root",
+              traceId: "trace_input",
+              kind: "root",
+              name: "Root",
+              status: "ok",
+              provenance: "recorded",
+              startedAt: 100,
+              endedAt: 200,
+              payload: { kind: "root" },
+            },
+          ],
+          [
+            {
+              id: "edge_1",
+              traceId: "trace_input",
+              fromSpanId: "root",
+              toSpanId: "missing",
+              kind: "dependency",
+            },
+          ],
+        ),
+        { traceId: "normalized_trace", importedAt: 999 },
+      ),
+    ).toThrow(TraceImportError);
   });
 });
