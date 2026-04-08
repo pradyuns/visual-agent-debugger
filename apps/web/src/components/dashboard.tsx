@@ -16,8 +16,9 @@ export function Dashboard({ initialTraces }: DashboardProps) {
   const [framework, setFramework] = useState("all");
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
-  const [importError, setImportError] = useState<string | null>(null);
+  const [bannerError, setBannerError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [deletingTraceId, setDeletingTraceId] = useState<string | null>(null);
 
   async function refreshTraces(nextFramework = framework, nextStatus = status, nextSearch = search) {
     const params = new URLSearchParams();
@@ -32,6 +33,10 @@ export function Dashboard({ initialTraces }: DashboardProps) {
     }
 
     const response = await fetch(`/api/traces?${params.toString()}`);
+    if (!response.ok) {
+      setBannerError("Could not refresh traces.");
+      return;
+    }
     const payload = (await response.json()) as { traces: TraceSummary[] };
     setTraces(payload.traces);
   }
@@ -42,7 +47,7 @@ export function Dashboard({ initialTraces }: DashboardProps) {
       return;
     }
 
-    setImportError(null);
+    setBannerError(null);
     setIsImporting(true);
 
     const formData = new FormData();
@@ -56,7 +61,7 @@ export function Dashboard({ initialTraces }: DashboardProps) {
     setIsImporting(false);
 
     if (!response.ok) {
-      setImportError(payload.message ?? "Import failed.");
+      setBannerError(payload.message ?? "Import failed.");
       return;
     }
 
@@ -64,6 +69,30 @@ export function Dashboard({ initialTraces }: DashboardProps) {
       router.push(`/runs/${payload.traceId}`);
       router.refresh();
     });
+  }
+
+  async function handleDelete(traceId: string, traceName: string) {
+    if (!window.confirm(`Delete "${traceName}" from local storage?`)) {
+      return;
+    }
+
+    setBannerError(null);
+    setDeletingTraceId(traceId);
+
+    const response = await fetch(`/api/traces/${traceId}`, {
+      method: "DELETE",
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    setDeletingTraceId(null);
+
+    if (!response.ok) {
+      setBannerError(payload.message ?? "Delete failed.");
+      return;
+    }
+
+    setTraces((current) => current.filter((trace) => trace.id !== traceId));
+    void refreshTraces();
   }
 
   const visibleTraces = traces.filter((trace) =>
@@ -135,20 +164,21 @@ export function Dashboard({ initialTraces }: DashboardProps) {
             <option value="error">Error</option>
           </select>
         </div>
-        {importError ? (
+        {bannerError ? (
           <p className="rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-            {importError}
+            {bannerError}
           </p>
         ) : null}
       </header>
 
       <section className="rounded-[28px] border border-white/10 bg-slate/65 shadow-panel backdrop-blur">
-        <div className="grid grid-cols-[2.1fr,1fr,1fr,1fr,1fr] gap-4 border-b border-white/10 px-5 py-4 text-xs uppercase tracking-[0.24em] text-slate-300">
+        <div className="grid grid-cols-[2.1fr,1fr,1fr,1fr,1fr,auto] gap-4 border-b border-white/10 px-5 py-4 text-xs uppercase tracking-[0.24em] text-slate-300">
           <span>Run</span>
           <span>Framework</span>
           <span>Status</span>
           <span>Started</span>
           <span>Tokens</span>
+          <span className="text-right">Actions</span>
         </div>
         {visibleTraces.length === 0 ? (
           <div className="grid place-items-center px-6 py-24 text-center text-slate-300">
@@ -163,18 +193,17 @@ export function Dashboard({ initialTraces }: DashboardProps) {
         ) : (
           <div className="divide-y divide-white/5">
             {visibleTraces.map((trace) => (
-              <Link
+              <div
                 key={trace.id}
-                href={`/runs/${trace.id}`}
-                className="grid grid-cols-[2.1fr,1fr,1fr,1fr,1fr] gap-4 px-5 py-5 transition hover:bg-white/5"
+                className="grid grid-cols-[2.1fr,1fr,1fr,1fr,1fr,auto] gap-4 px-5 py-5 transition hover:bg-white/5"
               >
-                <div className="space-y-2">
+                <Link href={`/runs/${trace.id}`} className="space-y-2">
                   <p className="text-base font-medium text-smoke">{trace.name}</p>
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-400">
                     {trace.spanCount} spans · {trace.errorCount} errors ·{" "}
                     {formatDuration(trace.durationMs)}
                   </p>
-                </div>
+                </Link>
                 <p className="text-sm text-slate-200">{trace.framework}</p>
                 <p
                   className={`text-sm ${
@@ -189,7 +218,17 @@ export function Dashboard({ initialTraces }: DashboardProps) {
                 </p>
                 <p className="text-sm text-slate-200">{formatDate(trace.startedAt)}</p>
                 <p className="text-sm text-slate-200">{formatTokens(trace.totalTokens)}</p>
-              </Link>
+                <div className="flex items-start justify-end">
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete(trace.id, trace.name)}
+                    disabled={deletingTraceId === trace.id}
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs uppercase tracking-[0.18em] text-slate-200 transition hover:border-rose-300/50 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deletingTraceId === trace.id ? "Deleting" : "Delete"}
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         )}

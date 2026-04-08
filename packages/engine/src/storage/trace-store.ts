@@ -59,8 +59,18 @@ export class LocalTraceStore implements TraceStore {
   async getTrace(traceId: string) {
     const bundlePath = getTraceBundlePath(this.dataDir, traceId);
     const rawPath = getRawSourcePath(this.dataDir, traceId);
+    const bundleContents = await fs.readFile(bundlePath, "utf8").catch((error) => {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new TraceImportError(
+          "trace_not_found",
+          `Trace "${traceId}" was not found.`,
+          { status: 404, cause: error },
+        );
+      }
+      throw error;
+    });
     const [bundleRaw, rawSourceRaw] = await Promise.all([
-      fs.readFile(bundlePath, "utf8"),
+      Promise.resolve(bundleContents),
       fs.readFile(rawPath, "utf8").catch(() => undefined),
     ]);
 

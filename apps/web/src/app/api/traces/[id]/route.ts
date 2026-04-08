@@ -17,3 +17,17 @@ export async function GET(
     return toErrorResponse(error);
   }
 }
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const { id } = await context.params;
+
+  try {
+    await getTraceStore().deleteTrace(id);
+    return Response.json({ deleted: true, traceId: id });
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
