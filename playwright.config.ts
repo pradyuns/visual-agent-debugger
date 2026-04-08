@@ -15,12 +15,13 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: "pnpm --filter @agent-debugger/web exec next dev --hostname 127.0.0.1 --port 3000",
+    command:
+      "pnpm build && pnpm --filter @agent-debugger/web exec next start --hostname 127.0.0.1 --port 3000",
     env: {
       AGENT_DEBUGGER_HOME: dataDir,
     },
     port: 3000,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    reuseExistingServer: false,
+    timeout: 180_000,
   },
 });

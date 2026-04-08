@@ -1,6 +1,13 @@
 import { ZodError } from "zod";
 import { TraceImportError } from "@agent-debugger/engine";
 
+export function isTraceNotFoundError(error: unknown) {
+  return (
+    error instanceof TraceImportError &&
+    (error.code === "trace_not_found" || error.status === 404)
+  );
+}
+
 export function toErrorResponse(error: unknown, fileName?: string) {
   if (error instanceof TraceImportError) {
     return Response.json(

@@ -1,5 +1,6 @@
 import { getTraceStore } from "../../../lib/store";
 import { toErrorResponse } from "../../../lib/errors";
+import { parseUploadedJsonFile } from "../../../lib/upload";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const contents = JSON.parse(await file.text());
+    const contents = await parseUploadedJsonFile(file);
     const result = await getTraceStore().importTrace(contents, file.name);
     return Response.json(result, { status: 201 });
   } catch (error) {
