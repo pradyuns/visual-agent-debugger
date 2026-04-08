@@ -4,6 +4,7 @@ node_modules
 dist
 .next
 coverage
+.playwright
 playwright-report
 test-results
 .agent-debugger
