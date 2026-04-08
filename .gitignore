@@ -10,3 +10,7 @@ test-results
 .agent-debugger
 .DS_Store
 *.tsbuildinfo
+.worktrees/
+implementation-plan.md
+.env
+.env.*
