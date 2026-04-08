@@ -1,11 +1,16 @@
 import os from "node:os";
 import path from "node:path";
+import { TraceImportError } from "../validation/errors";
 
 const SAFE_TRACE_ID = /^[A-Za-z0-9_-]+$/;
 
 export function assertSafeTraceId(traceId: string): void {
   if (!SAFE_TRACE_ID.test(traceId)) {
-    throw new Error(`Invalid trace ID: ${JSON.stringify(traceId)}`);
+    throw new TraceImportError(
+      "invalid_trace_id",
+      `Trace ID contains unsupported characters: ${JSON.stringify(traceId)}.`,
+      { status: 400 },
+    );
   }
 }
 

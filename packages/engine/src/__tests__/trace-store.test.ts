@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach } from "vitest";
 import { createTraceStore } from "../storage/trace-store";
+import { TraceImportError } from "../validation/errors";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -71,5 +72,19 @@ describe("LocalTraceStore", () => {
     expect(list.map((trace) => trace.id).sort()).toEqual(
       [first.traceId, second.traceId].sort(),
     );
+  });
+
+  it("rejects invalid trace ids before accessing the filesystem", async () => {
+    const dataDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "agent-debugger-"),
+    );
+    tempDirs.push(dataDir);
+    const store = createTraceStore({ dataDir });
+
+    await expect(store.getTrace("../escape")).rejects.toMatchObject({
+      name: "TraceImportError",
+      code: "invalid_trace_id",
+      status: 400,
+    } satisfies Partial<TraceImportError>);
   });
 });

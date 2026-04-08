@@ -32,13 +32,17 @@ export function Dashboard({ initialTraces }: DashboardProps) {
       params.set("search", nextSearch.trim());
     }
 
-    const response = await fetch(`/api/traces?${params.toString()}`);
-    if (!response.ok) {
-      setBannerError("Could not refresh traces.");
-      return;
+    try {
+      const response = await fetch(`/api/traces?${params.toString()}`);
+      if (!response.ok) {
+        setBannerError("Could not refresh traces.");
+        return;
+      }
+      const payload = (await response.json()) as { traces: TraceSummary[] };
+      setTraces(payload.traces);
+    } catch (error) {
+      setBannerError(getRequestFailureMessage(error, "Could not refresh traces."));
     }
-    const payload = (await response.json()) as { traces: TraceSummary[] };
-    setTraces(payload.traces);
   }
 
   async function handleUpload(fileList: FileList | null) {
@@ -69,8 +73,8 @@ export function Dashboard({ initialTraces }: DashboardProps) {
         router.push(`/runs/${payload.traceId}`);
         router.refresh();
       });
-    } catch {
-      setBannerError("Network error — could not reach the server.");
+    } catch (error) {
+      setBannerError(getRequestFailureMessage(error, "Import failed."));
     } finally {
       setIsImporting(false);
     }
@@ -97,8 +101,8 @@ export function Dashboard({ initialTraces }: DashboardProps) {
 
       setTraces((current) => current.filter((trace) => trace.id !== traceId));
       void refreshTraces();
-    } catch {
-      setBannerError("Network error — could not reach the server.");
+    } catch (error) {
+      setBannerError(getRequestFailureMessage(error, "Delete failed."));
     } finally {
       setDeletingTraceId(null);
     }
@@ -244,4 +248,12 @@ export function Dashboard({ initialTraces }: DashboardProps) {
       </section>
     </div>
   );
+}
+
+function getRequestFailureMessage(error: unknown, fallback: string) {
+  if (error instanceof TypeError) {
+    return "Could not reach the server. Try again.";
+  }
+
+  return fallback;
 }
