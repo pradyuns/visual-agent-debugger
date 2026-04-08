@@ -50,25 +50,30 @@ export function Dashboard({ initialTraces }: DashboardProps) {
     setBannerError(null);
     setIsImporting(true);
 
-    const formData = new FormData();
-    formData.append("file", file);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
 
-    const response = await fetch("/api/import", {
-      method: "POST",
-      body: formData,
-    });
-    const payload = await response.json();
-    setIsImporting(false);
+      const response = await fetch("/api/import", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json();
 
-    if (!response.ok) {
-      setBannerError(payload.message ?? "Import failed.");
-      return;
+      if (!response.ok) {
+        setBannerError(payload.message ?? "Import failed.");
+        return;
+      }
+
+      startTransition(() => {
+        router.push(`/runs/${payload.traceId}`);
+        router.refresh();
+      });
+    } catch {
+      setBannerError("Network error — could not reach the server.");
+    } finally {
+      setIsImporting(false);
     }
-
-    startTransition(() => {
-      router.push(`/runs/${payload.traceId}`);
-      router.refresh();
-    });
   }
 
   async function handleDelete(traceId: string, traceName: string) {
@@ -79,20 +84,24 @@ export function Dashboard({ initialTraces }: DashboardProps) {
     setBannerError(null);
     setDeletingTraceId(traceId);
 
-    const response = await fetch(`/api/traces/${traceId}`, {
-      method: "DELETE",
-    });
-    const payload = await response.json().catch(() => ({}));
+    try {
+      const response = await fetch(`/api/traces/${traceId}`, {
+        method: "DELETE",
+      });
+      const payload = await response.json().catch(() => ({}));
 
-    setDeletingTraceId(null);
+      if (!response.ok) {
+        setBannerError(payload.message ?? "Delete failed.");
+        return;
+      }
 
-    if (!response.ok) {
-      setBannerError(payload.message ?? "Delete failed.");
-      return;
+      setTraces((current) => current.filter((trace) => trace.id !== traceId));
+      void refreshTraces();
+    } catch {
+      setBannerError("Network error — could not reach the server.");
+    } finally {
+      setDeletingTraceId(null);
     }
-
-    setTraces((current) => current.filter((trace) => trace.id !== traceId));
-    void refreshTraces();
   }
 
   const visibleTraces = traces.filter((trace) =>
