@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach } from "vitest";
 import { createTraceStore } from "../storage/trace-store";
 import { TraceImportError } from "../validation/errors";
+import { getIndexPath, getTraceBundlePath, getTraceDir } from "../storage/paths";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -85,6 +86,63 @@ describe("LocalTraceStore", () => {
       name: "TraceImportError",
       code: "invalid_trace_id",
       status: 400,
+    } satisfies Partial<TraceImportError>);
+  });
+
+  it("rebuilds the index while skipping invalid trace directories", async () => {
+    const dataDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "agent-debugger-"),
+    );
+    tempDirs.push(dataDir);
+    const store = createTraceStore({ dataDir });
+
+    const imported = await store.importTrace(loadFixture(), "canonical-trace.json");
+    const invalidTraceDir = getTraceDir(dataDir, "broken-trace");
+    await fs.promises.mkdir(invalidTraceDir, { recursive: true });
+    await fs.promises.writeFile(
+      getTraceBundlePath(dataDir, "broken-trace"),
+      "{not-json",
+      "utf8",
+    );
+
+    await store.rebuildIndex();
+
+    await expect(store.getTrace(imported.traceId)).resolves.toMatchObject({
+      trace: { id: imported.traceId },
+    });
+    await expect(store.listTraces()).resolves.toHaveLength(1);
+  });
+
+  it("rebuilds a corrupted index from trace bundles", async () => {
+    const dataDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "agent-debugger-"),
+    );
+    tempDirs.push(dataDir);
+    const store = createTraceStore({ dataDir });
+
+    const imported = await store.importTrace(loadFixture(), "canonical-trace.json");
+    await fs.promises.writeFile(
+      getIndexPath(dataDir),
+      JSON.stringify([{ nope: true }], null, 2),
+      "utf8",
+    );
+
+    await expect(store.listTraces()).resolves.toMatchObject([
+      { id: imported.traceId, name: "Canonical raw trace" },
+    ]);
+  });
+
+  it("throws when deleting a nonexistent trace", async () => {
+    const dataDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "agent-debugger-"),
+    );
+    tempDirs.push(dataDir);
+    const store = createTraceStore({ dataDir });
+
+    await expect(store.deleteTrace("missing-trace")).rejects.toMatchObject({
+      name: "TraceImportError",
+      code: "trace_not_found",
+      status: 404,
     } satisfies Partial<TraceImportError>);
   });
 });

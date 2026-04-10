@@ -108,10 +108,6 @@ export function Dashboard({ initialTraces }: DashboardProps) {
     }
   }
 
-  const visibleTraces = traces.filter((trace) =>
-    trace.name.toLowerCase().includes(search.toLowerCase()),
-  );
-
   return (
     <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-8 px-6 py-8 sm:px-10">
       <header className="grid gap-6 rounded-[32px] border border-white/10 bg-ink/70 p-8 shadow-panel backdrop-blur">
@@ -193,7 +189,7 @@ export function Dashboard({ initialTraces }: DashboardProps) {
           <span>Tokens</span>
           <span className="text-right">Actions</span>
         </div>
-        {visibleTraces.length === 0 ? (
+        {traces.length === 0 ? (
           <div className="grid place-items-center px-6 py-24 text-center text-slate-300">
             <div className="max-w-md space-y-3">
               <p className="text-lg font-medium text-smoke">No traces loaded yet.</p>
@@ -205,7 +201,7 @@ export function Dashboard({ initialTraces }: DashboardProps) {
           </div>
         ) : (
           <div className="divide-y divide-white/5">
-            {visibleTraces.map((trace) => (
+            {traces.map((trace) => (
               <div
                 key={trace.id}
                 className="grid grid-cols-[2.1fr,1fr,1fr,1fr,1fr,auto] gap-4 px-5 py-5 transition hover:bg-white/5"

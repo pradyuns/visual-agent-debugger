@@ -136,6 +136,14 @@ export class AgentsSdkTraceAdapter implements TraceAdapter {
       };
     });
 
+    if (spans.length === 0) {
+      throw new TraceImportError(
+        "empty_trace",
+        "Imported traces must contain at least one span.",
+      );
+    }
+    const rootSpan = spans[0]!;
+
     const trace: TraceRecord = {
       schemaVersion: 1,
       id: traceId,
@@ -151,7 +159,7 @@ export class AgentsSdkTraceAdapter implements TraceAdapter {
       createdAt,
       importedAt: createdAt,
       updatedAt: createdAt,
-      rootSpanId: spans[0]?.id ?? "",
+      rootSpanId: rootSpan.id,
       tags: parsed.data.trace.tags,
       metadata: {
         ...parsed.data.trace.metadata,
