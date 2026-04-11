@@ -1,7 +1,18 @@
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { TraceAdapter, TraceBundle, TraceListFilters, TraceStore, TraceSummary } from "../types";
+import { EventEmitter } from "node:events";
+import type {
+  SpanEvent,
+  SpanRecord,
+  TraceAdapter,
+  TraceBundle,
+  TraceFramework,
+  TraceListFilters,
+  TraceRecord,
+  TraceStore,
+  TraceSummary,
+} from "../types";
 import { defaultAdapters } from "../adapters";
 import { buildTraceGraphData } from "../queries/derived";
 import { normalizeTraceBundle } from "../validation/normalize";
@@ -14,14 +25,34 @@ interface LocalTraceStoreOptions {
   dataDir?: string;
 }
 
+export interface UpsertSpansOptions {
+  traceName?: string;
+  framework?: TraceFramework;
+}
+
 export class LocalTraceStore implements TraceStore {
   private readonly adapters: TraceAdapter[];
   private readonly dataDir: string;
   private writeQueue: Promise<void> = Promise.resolve();
+  private readonly emitter = new EventEmitter();
 
   constructor(options: LocalTraceStoreOptions = {}) {
     this.adapters = options.adapters ?? defaultAdapters;
     this.dataDir = resolveDataDir(options.dataDir);
+  }
+
+  on(event: string, listener: (evt: SpanEvent) => void) {
+    this.emitter.on(event, listener);
+    return this;
+  }
+
+  off(event: string, listener: (evt: SpanEvent) => void) {
+    this.emitter.off(event, listener);
+    return this;
+  }
+
+  private emit(event: SpanEvent) {
+    this.emitter.emit(event.type, event);
   }
 
   async importTrace(input: unknown, sourceName: string) {
@@ -42,6 +73,88 @@ export class LocalTraceStore implements TraceStore {
       await this.indexBundle(normalized);
 
       return { traceId: normalized.trace.id };
+    });
+  }
+
+  async upsertSpans(
+    traceId: string,
+    spans: SpanRecord[],
+    options: UpsertSpansOptions = {},
+  ): Promise<{ traceId: string; spansAdded: number; spansUpdated: number }> {
+    return this.enqueueWrite(async () => {
+      const bundlePath = getTraceBundlePath(this.dataDir, traceId);
+      let existing: { trace: TraceRecord; spans: SpanRecord[]; edges: never[] } | undefined;
+      let isNew = false;
+
+      try {
+        const raw = await fs.readFile(bundlePath, "utf8");
+        existing = JSON.parse(raw);
+      } catch {
+        isNew = true;
+      }
+
+      const existingSpanMap = new Map<string, SpanRecord>();
+      if (existing) {
+        for (const span of existing.spans) {
+          existingSpanMap.set(span.id, span);
+        }
+      }
+
+      let spansAdded = 0;
+      let spansUpdated = 0;
+      const events: SpanEvent[] = [];
+
+      for (const span of spans) {
+        if (existingSpanMap.has(span.id)) {
+          existingSpanMap.set(span.id, span);
+          spansUpdated++;
+          events.push({ type: "span:updated", traceId, span });
+        } else {
+          existingSpanMap.set(span.id, span);
+          spansAdded++;
+          events.push({ type: "span:added", traceId, span });
+        }
+      }
+
+      const mergedSpans = Array.from(existingSpanMap.values());
+      const now = Date.now();
+
+      const trace: TraceRecord = existing
+        ? { ...existing.trace, updatedAt: now }
+        : {
+            schemaVersion: 1,
+            id: traceId,
+            name: options.traceName ?? traceId,
+            framework: options.framework ?? "raw",
+            status: "running",
+            startedAt: Math.min(...mergedSpans.map((s) => s.startedAt)),
+            createdAt: now,
+            importedAt: now,
+            updatedAt: now,
+            rootSpanId: mergedSpans.find((s) => !s.parentSpanId)?.id ?? mergedSpans[0]?.id ?? traceId,
+            tags: [],
+            metadata: {},
+          };
+
+      const bundle: TraceBundle = {
+        trace,
+        spans: mergedSpans,
+        edges: existing?.edges ?? [],
+      };
+
+      await fs.mkdir(path.dirname(bundlePath), { recursive: true });
+      await writeJsonAtomic(bundlePath, JSON.stringify(bundle, null, 2));
+
+      await this.indexBundle(bundle);
+
+      if (isNew) {
+        this.emit({ type: "trace:created", summary: summarizeBundle(bundle) });
+      }
+      for (const event of events) {
+        this.emit(event);
+      }
+
+      return { traceId, spansAdded, spansUpdated };
     });
   }
 
