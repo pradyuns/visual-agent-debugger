@@ -112,11 +112,6 @@ export function buildFlowGraph(bundle: TraceBundle): FlowGraph {
   const depthMap = new Map<string, number>();
   const laneCountByDepth = new Map<number, number>();
 
-  // Compute depths via a second walk (reusing the ordered list)
-  const spanById = new Map<string, SpanRecord>();
-  for (const span of bundle.spans) {
-    spanById.set(span.id, span);
-  }
   for (const span of orderedSpans) {
     if (!span.parentSpanId || !depthMap.has(span.parentSpanId)) {
       depthMap.set(span.id, 0);
