@@ -75,7 +75,7 @@ export function RunViewer({ bundle }: RunViewerProps) {
     if (fromUrl && fromUrl !== selectedSpanId) {
       setSelectedSpanId(fromUrl);
     }
-  }, [searchParams, selectedSpanId]);
+  }, [searchParams]);
 
   function handleSelectSpan(spanId: string) {
     setSelectedSpanId(spanId);
