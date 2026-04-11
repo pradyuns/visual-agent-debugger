@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { TraceBundle, TraceStatus } from "@agent-debugger/engine";
-import { buildFlowGraph, filterVisibleGraph } from "../lib/graph";
+import { buildFlowGraph } from "../lib/graph";
 import { formatDuration, formatTokens } from "../lib/format";
 import { usePlaybackEngine } from "../hooks/use-playback-engine";
 import { useTraceStream } from "../hooks/use-trace-stream";
@@ -23,12 +23,6 @@ export function RunViewer({ bundle }: RunViewerProps) {
   const [selectedSpanId, setSelectedSpanId] = useState(
     searchParams.get("span") ?? bundle.trace.rootSpanId,
   );
-  const selectedSpan =
-    bundle.spans.find((span) => span.id === selectedSpanId) ??
-    bundle.spans.find((span) => span.id === bundle.trace.rootSpanId) ??
-    bundle.spans[0];
-
-  const graph = useMemo(() => buildFlowGraph(bundle), [bundle]);
 
   const [traceStatus, setTraceStatus] = useState<TraceStatus>(bundle.trace.status);
   const isRunning = traceStatus === "running";
@@ -43,17 +37,38 @@ export function RunViewer({ bundle }: RunViewerProps) {
     setTraceStatus(status);
   }, []);
 
-  const { connectionStatus } = useTraceStream({
+  const handleSnapshot = useCallback(
+    (snapshot: TraceBundle) => {
+      playbackControls.appendSpans(snapshot.spans);
+      setTraceStatus(snapshot.trace.status);
+    },
+    [playbackControls],
+  );
+
+  useTraceStream({
     traceId: bundle.trace.id,
     enabled: isRunning,
     playbackControls,
+    onSnapshot: handleSnapshot,
     onStatusChange: handleStatusChange,
   });
 
-  const visibleGraph = useMemo(
-    () => filterVisibleGraph(graph, playback.visibleSpanIds),
-    [graph, playback.visibleSpanIds],
+  const liveBundle = useMemo<TraceBundle>(
+    () => ({
+      ...bundle,
+      trace: {
+        ...bundle.trace,
+        status: traceStatus,
+      },
+      spans: playback.allSpans,
+    }),
+    [bundle, playback.allSpans, traceStatus],
   );
+  const graph = useMemo(() => buildFlowGraph(liveBundle), [liveBundle]);
+  const selectedSpan =
+    liveBundle.spans.find((span) => span.id === selectedSpanId) ??
+    liveBundle.spans.find((span) => span.id === liveBundle.trace.rootSpanId) ??
+    liveBundle.spans[0];
 
   useEffect(() => {
     const fromUrl = searchParams.get("span");
@@ -77,10 +92,10 @@ export function RunViewer({ bundle }: RunViewerProps) {
     }
   }
 
-  const errorCount = bundle.spans.filter((span) => span.error).length;
+  const errorCount = liveBundle.spans.filter((span) => span.error).length;
   const duration =
-    bundle.trace.endedAt !== undefined
-      ? Math.max(bundle.trace.endedAt - bundle.trace.startedAt, 0)
+    liveBundle.trace.endedAt !== undefined
+      ? Math.max(liveBundle.trace.endedAt - liveBundle.trace.startedAt, 0)
       : undefined;
 
   if (!selectedSpan) {
@@ -92,10 +107,10 @@ export function RunViewer({ bundle }: RunViewerProps) {
       <header className="grid gap-5 rounded-[30px] border border-white/10 bg-ink/70 p-7 shadow-panel backdrop-blur lg:grid-cols-[1.6fr,1fr]">
         <div className="space-y-3">
           <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-            {bundle.trace.framework}
+            {liveBundle.trace.framework}
           </p>
           <h1 className="flex items-center gap-3 text-4xl font-semibold tracking-tight text-smoke">
-            {bundle.trace.name}
+            {liveBundle.trace.name}
             {isRunning ? (
               <span className="flex items-center gap-1.5 rounded-lg bg-red-500/20 px-2 py-1 text-xs font-medium text-red-400">
                 <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" />
@@ -109,10 +124,10 @@ export function RunViewer({ bundle }: RunViewerProps) {
           </p>
         </div>
         <div className="grid gap-4 rounded-[24px] border border-white/10 bg-white/5 p-5 sm:grid-cols-2">
-          <Metric label="Spans" value={String(bundle.spans.length)} />
+          <Metric label="Spans" value={String(liveBundle.spans.length)} />
           <Metric label="Errors" value={String(errorCount)} />
           <Metric label="Duration" value={formatDuration(duration)} />
-          <Metric label="Tokens" value={formatTokens(bundle.trace.totalTokens)} />
+          <Metric label="Tokens" value={formatTokens(liveBundle.trace.totalTokens)} />
         </div>
       </header>
 

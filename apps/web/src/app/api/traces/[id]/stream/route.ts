@@ -5,17 +5,32 @@ import { toErrorResponse } from "../../../../../lib/errors";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+export function formatTraceStreamEvent(event: SpanEvent, traceId: string): string | null {
+  if ("traceId" in event && event.traceId !== traceId) {
+    return null;
+  }
+
+  if (event.type === "span:added" || event.type === "span:updated") {
+    return `event: span\ndata: ${JSON.stringify(event.span)}\n\n`;
+  }
+
+  if (event.type === "trace:status") {
+    return `event: status\ndata: ${JSON.stringify({ status: event.status })}\n\n`;
+  }
+
+  return null;
+}
+
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: traceId } = await params;
-
   const store = getTraceStore();
 
-  let bundle;
+  // Fail fast with a proper HTTP status before opening an SSE stream.
   try {
-    bundle = await store.getTrace(traceId);
+    await store.getTrace(traceId);
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -24,48 +39,82 @@ export async function GET(
   let closed = false;
 
   const stream = new ReadableStream({
-    start(controller) {
-      // Send initial snapshot
-      controller.enqueue(
-        encoder.encode(`event: snapshot\ndata: ${JSON.stringify(bundle)}\n\n`),
-      );
+    async start(controller) {
+      let snapshotSent = false;
+      const pendingEvents: SpanEvent[] = [];
+
+      const enqueueSse = (payload: string) => {
+        if (closed) return;
+        controller.enqueue(encoder.encode(payload));
+      };
 
       const listener = (event: SpanEvent) => {
-        if (closed) return;
-        if (event.type === "span:added" || event.type === "span:updated") {
-          controller.enqueue(
-            encoder.encode(`event: span\ndata: ${JSON.stringify(event.span)}\n\n`),
-          );
-        } else if (event.type === "trace:status") {
-          controller.enqueue(
-            encoder.encode(`event: status\ndata: ${JSON.stringify({ status: event.status })}\n\n`),
-          );
+        const payload = formatTraceStreamEvent(event, traceId);
+        if (!payload) return;
+        if (!snapshotSent) {
+          pendingEvents.push(event);
+          return;
         }
+        enqueueSse(payload);
       };
 
       store.on("span:added", listener);
       store.on("span:updated", listener);
       store.on("trace:status", listener);
+      let heartbeat: ReturnType<typeof setInterval> | null = null;
+
+      const cleanup = () => {
+        if (closed) return;
+        closed = true;
+        if (heartbeat !== null) {
+          clearInterval(heartbeat);
+          heartbeat = null;
+        }
+        store.off("span:added", listener);
+        store.off("span:updated", listener);
+        store.off("trace:status", listener);
+      };
 
       // Heartbeat to keep connection alive
-      const heartbeat = setInterval(() => {
+      heartbeat = setInterval(() => {
         if (closed) return;
         try {
-          controller.enqueue(encoder.encode(": heartbeat\n\n"));
+          enqueueSse(": heartbeat\n\n");
         } catch {
           // stream closed
         }
       }, 15_000);
 
-      // Cleanup on cancel
-      _request.signal.addEventListener("abort", () => {
-        closed = true;
-        clearInterval(heartbeat);
-        store.off("span:added", listener);
-        store.off("span:updated", listener);
-        store.off("trace:status", listener);
-        controller.close();
+      request.signal.addEventListener("abort", () => {
+        cleanup();
+        try {
+          controller.close();
+        } catch {
+          // stream already closed
+        }
       });
+
+      try {
+        // Subscribe first, then snapshot, so events during snapshot read are buffered.
+        const bundle = await store.getTrace(traceId);
+        enqueueSse(`event: snapshot\ndata: ${JSON.stringify(bundle)}\n\n`);
+        snapshotSent = true;
+
+        for (const event of pendingEvents) {
+          const payload = formatTraceStreamEvent(event, traceId);
+          if (payload) {
+            enqueueSse(payload);
+          }
+        }
+      } catch {
+        cleanup();
+        try {
+          controller.close();
+        } catch {
+          // stream already closed
+        }
+        return;
+      }
     },
   });
 

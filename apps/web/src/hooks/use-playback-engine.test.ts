@@ -308,13 +308,31 @@ describe("usePlaybackEngine", () => {
       ]);
     });
 
-    it("deduplicates existing spans", () => {
+    it("upserts existing spans by id", () => {
+      const runningChild = makeSpan({
+        id: "child-a",
+        parentSpanId: "root",
+        startedAt: 1,
+        status: "running",
+      });
       const { result } = renderHook(() =>
-        usePlaybackEngine({ spans: [rootSpan, childA], rootSpanId: "root" }),
+        usePlaybackEngine({ spans: [rootSpan, runningChild], rootSpanId: "root" }),
       );
 
-      act(() => result.current[1].appendSpans([childA, childB]));
+      const finalizedChild = makeSpan({
+        id: "child-a",
+        parentSpanId: "root",
+        startedAt: 1,
+        status: "ok",
+        endedAt: 50,
+        latencyMs: 49,
+      });
+
+      act(() => result.current[1].appendSpans([finalizedChild, childB]));
       expect(result.current[0].allSpans.length).toBe(3);
+      const updatedChild = result.current[0].allSpans.find((span) => span.id === "child-a");
+      expect(updatedChild?.status).toBe("ok");
+      expect(updatedChild?.endedAt).toBe(50);
     });
 
     it("auto-advances cursor in live mode", () => {

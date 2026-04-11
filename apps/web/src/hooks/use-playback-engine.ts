@@ -168,14 +168,11 @@ export function usePlaybackEngine({
 
   const appendSpans = useCallback((newSpans: SpanRecord[]) => {
     setAllSpans((prev) => {
-      const existingIds = new Set(prev.map((s) => s.id));
-      const merged = [...prev];
+      const byId = new Map(prev.map((span) => [span.id, span]));
       for (const s of newSpans) {
-        if (!existingIds.has(s.id)) {
-          merged.push(s);
-        }
+        byId.set(s.id, s);
       }
-      const ordered = orderSpans(merged, rootSpanIdRef.current);
+      const ordered = orderSpans(Array.from(byId.values()), rootSpanIdRef.current);
       if (modeRef.current === "live") {
         setCursor(Math.max(0, ordered.length - 1));
       }
