@@ -138,6 +138,29 @@ export const traceRecordSchema = z.object({
     .optional(),
 });
 
+export const traceSummarySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  framework: traceFrameworkSchema,
+  status: traceStatusSchema,
+  startedAt: z.number().int(),
+  endedAt: z.number().int().optional(),
+  durationMs: z.number().int().nonnegative().optional(),
+  updatedAt: z.number().int(),
+  tags: z.array(z.string()),
+  totalTokens: tokenUsageSchema.optional(),
+  totalCostUsd: z
+    .object({
+      input: z.number().nonnegative(),
+      output: z.number().nonnegative(),
+    })
+    .optional(),
+  spanCount: z.number().int().nonnegative(),
+  errorCount: z.number().int().nonnegative(),
+});
+
+export const traceSummaryListSchema = z.array(traceSummarySchema);
+
 export const spanRecordSchema = z.object({
   id: z.string().min(1),
   traceId: z.string().min(1),

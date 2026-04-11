@@ -16,7 +16,7 @@ import type {
 import { defaultAdapters } from "../adapters";
 import { buildTraceGraphData } from "../queries/derived";
 import { normalizeTraceBundle } from "../validation/normalize";
-import { rawBundleFileSchema } from "../validation/schema";
+import { rawBundleFileSchema, traceSummaryListSchema } from "../validation/schema";
 import { TraceImportError } from "../validation/errors";
 import { getIndexPath, getRawSourcePath, getTraceBundlePath, getTraceDir, resolveDataDir } from "./paths";
 
@@ -203,6 +203,16 @@ export class LocalTraceStore implements TraceStore {
 
   async deleteTrace(traceId: string) {
     await this.enqueueWrite(async () => {
+      await fs.access(getTraceBundlePath(this.dataDir, traceId)).catch((error) => {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          throw new TraceImportError(
+            "trace_not_found",
+            `Trace "${traceId}" was not found.`,
+            { status: 404, cause: error },
+          );
+        }
+        throw error;
+      });
       await fs.rm(getTraceDir(this.dataDir, traceId), { recursive: true, force: true });
       const index = await this.readIndex();
       await this.writeIndex(index.filter((trace) => trace.id !== traceId));
@@ -211,23 +221,7 @@ export class LocalTraceStore implements TraceStore {
 
   async rebuildIndex() {
     await this.enqueueWrite(async () => {
-      const tracesRoot = path.join(this.dataDir, "traces");
-      const dirs = await fs.readdir(tracesRoot, { withFileTypes: true }).catch(() => []);
-      const summaries: TraceSummary[] = [];
-
-      for (const entry of dirs) {
-        if (!entry.isDirectory()) {
-          continue;
-        }
-        const bundleRaw = await fs.readFile(
-          getTraceBundlePath(this.dataDir, entry.name),
-          "utf8",
-        );
-        const bundle = rawBundleFileSchema.parse(JSON.parse(bundleRaw));
-        summaries.push(summarizeBundle(bundle));
-      }
-
-      await this.writeIndex(summaries);
+      await this.writeIndex(await this.collectTraceSummaries());
     });
   }
 
@@ -263,7 +257,13 @@ export class LocalTraceStore implements TraceStore {
   private async readIndex() {
     const indexPath = getIndexPath(this.dataDir);
     const raw = await fs.readFile(indexPath, "utf8").catch(() => "[]");
-    return JSON.parse(raw) as TraceSummary[];
+    try {
+      return traceSummaryListSchema.parse(JSON.parse(raw));
+    } catch {
+      const rebuilt = await this.collectTraceSummaries();
+      await this.writeIndex(rebuilt);
+      return rebuilt;
+    }
   }
 
   private async writeIndex(index: TraceSummary[]) {
@@ -279,13 +279,42 @@ export class LocalTraceStore implements TraceStore {
     );
     return pending;
   }
+
+  private async collectTraceSummaries() {
+    const tracesRoot = path.join(this.dataDir, "traces");
+    const dirs = await fs.readdir(tracesRoot, { withFileTypes: true }).catch(() => []);
+    const summaries: TraceSummary[] = [];
+
+    for (const entry of dirs) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      try {
+        const bundleRaw = await fs.readFile(
+          getTraceBundlePath(this.dataDir, entry.name),
+          "utf8",
+        );
+        const bundle = rawBundleFileSchema.parse(JSON.parse(bundleRaw));
+        summaries.push(summarizeBundle(bundle));
+      } catch {
+        continue;
+      }
+    }
+
+    return summaries;
+  }
 }
 
 async function writeJsonAtomic(filePath: string, contents: string) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const tempPath = `${filePath}.${randomUUID()}.tmp`;
   await fs.writeFile(tempPath, contents, "utf8");
-  await fs.rename(tempPath, filePath);
+  try {
+    await fs.rename(tempPath, filePath);
+  } finally {
+    await fs.unlink(tempPath).catch(() => {});
+  }
 }
 
 function summarizeBundle(bundle: TraceBundle): TraceSummary {

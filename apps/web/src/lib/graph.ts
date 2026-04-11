@@ -156,10 +156,10 @@ export function buildFlowGraph(bundle: TraceBundle): FlowGraph {
     nodes,
     edges: [...primaryEdges, ...secondaryEdges],
     width:
-      (Math.max(...nodes.map((node) => node.x + node.width), NODE_WIDTH) || NODE_WIDTH) +
+      (Math.max(...nodes.map((node) => node.x + node.width), NODE_WIDTH) ?? NODE_WIDTH) +
       48,
     height:
-      (Math.max(...nodes.map((node) => node.y + node.height), NODE_HEIGHT) ||
+      (Math.max(...nodes.map((node) => node.y + node.height), NODE_HEIGHT) ??
         NODE_HEIGHT) + 48,
   };
 }

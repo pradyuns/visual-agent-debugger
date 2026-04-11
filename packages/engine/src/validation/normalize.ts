@@ -75,8 +75,14 @@ export function normalizeTraceBundle(
   let rootSpanId = input.trace.rootSpanId;
   if (rootCandidates.length !== 1 || !spanMap.has(rootSpanId)) {
     const syntheticRoot = buildSyntheticRoot(spans, traceId);
-    for (const span of rootCandidates) {
-      span.parentSpanId = syntheticRoot.id;
+    for (const rootCandidate of rootCandidates) {
+      const nextRootCandidate = {
+        ...rootCandidate,
+        parentSpanId: syntheticRoot.id,
+      };
+      const index = spans.findIndex((span) => span.id === rootCandidate.id);
+      spans[index] = nextRootCandidate;
+      spanMap.set(nextRootCandidate.id, nextRootCandidate);
     }
     spans.push(syntheticRoot);
     rootSpanId = syntheticRoot.id;
