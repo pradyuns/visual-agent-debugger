@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { TraceBundle } from "@agent-debugger/engine";
+import type { TraceBundle, TraceStatus } from "@agent-debugger/engine";
 import { buildFlowGraph, filterVisibleGraph } from "../lib/graph";
 import { formatDuration, formatTokens } from "../lib/format";
 import { usePlaybackEngine } from "../hooks/use-playback-engine";
+import { useTraceStream } from "../hooks/use-trace-stream";
 import { SpanInspector } from "./span-inspector";
 import { TraceGraph } from "./trace-graph";
 import { TransportControls } from "./transport-controls";
@@ -29,10 +30,24 @@ export function RunViewer({ bundle }: RunViewerProps) {
 
   const graph = useMemo(() => buildFlowGraph(bundle), [bundle]);
 
+  const [traceStatus, setTraceStatus] = useState<TraceStatus>(bundle.trace.status);
+  const isRunning = traceStatus === "running";
+
   const [playback, playbackControls] = usePlaybackEngine({
     spans: bundle.spans,
     rootSpanId: bundle.trace.rootSpanId,
     startAtEnd: !isReplay,
+  });
+
+  const handleStatusChange = useCallback((status: TraceStatus) => {
+    setTraceStatus(status);
+  }, []);
+
+  const { connectionStatus } = useTraceStream({
+    traceId: bundle.trace.id,
+    enabled: isRunning,
+    playbackControls,
+    onStatusChange: handleStatusChange,
   });
 
   const visibleGraph = useMemo(
@@ -79,8 +94,14 @@ export function RunViewer({ bundle }: RunViewerProps) {
           <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
             {bundle.trace.framework}
           </p>
-          <h1 className="text-4xl font-semibold tracking-tight text-smoke">
+          <h1 className="flex items-center gap-3 text-4xl font-semibold tracking-tight text-smoke">
             {bundle.trace.name}
+            {isRunning ? (
+              <span className="flex items-center gap-1.5 rounded-lg bg-red-500/20 px-2 py-1 text-xs font-medium text-red-400">
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                Live
+              </span>
+            ) : null}
           </h1>
           <p className="max-w-2xl text-sm leading-6 text-slate-300">
             Graph view for imported spans, with typed payload inspection and
@@ -108,11 +129,11 @@ export function RunViewer({ bundle }: RunViewerProps) {
         <SpanInspector span={selectedSpan} />
       </div>
 
-      {isReplay ? (
+      {isReplay || isRunning ? (
         <TransportControls
           state={playback}
           controls={playbackControls}
-          traceIsRunning={bundle.trace.status === "running"}
+          traceIsRunning={isRunning}
         />
       ) : null}
     </div>
