@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { TraceBundle } from "@agent-debugger/engine";
-import { buildFlowGraph } from "../lib/graph";
+import { buildFlowGraph, filterVisibleGraph } from "../lib/graph";
 import { formatDuration, formatTokens } from "../lib/format";
+import { usePlaybackEngine } from "../hooks/use-playback-engine";
 import { SpanInspector } from "./span-inspector";
 import { TraceGraph } from "./trace-graph";
+import { TransportControls } from "./transport-controls";
 
 interface RunViewerProps {
   bundle: TraceBundle;
@@ -15,6 +17,8 @@ interface RunViewerProps {
 export function RunViewer({ bundle }: RunViewerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isReplay = searchParams.get("replay") === "true";
+
   const [selectedSpanId, setSelectedSpanId] = useState(
     searchParams.get("span") ?? bundle.trace.rootSpanId,
   );
@@ -22,7 +26,19 @@ export function RunViewer({ bundle }: RunViewerProps) {
     bundle.spans.find((span) => span.id === selectedSpanId) ??
     bundle.spans.find((span) => span.id === bundle.trace.rootSpanId) ??
     bundle.spans[0];
-  const graph = buildFlowGraph(bundle);
+
+  const graph = useMemo(() => buildFlowGraph(bundle), [bundle]);
+
+  const [playback, playbackControls] = usePlaybackEngine({
+    spans: bundle.spans,
+    rootSpanId: bundle.trace.rootSpanId,
+    startAtEnd: !isReplay,
+  });
+
+  const visibleGraph = useMemo(
+    () => filterVisibleGraph(graph, playback.visibleSpanIds),
+    [graph, playback.visibleSpanIds],
+  );
 
   useEffect(() => {
     const fromUrl = searchParams.get("span");
@@ -36,6 +52,14 @@ export function RunViewer({ bundle }: RunViewerProps) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("span", spanId);
     router.replace(`?${params.toString()}`, { scroll: false });
+
+    // In replay mode, seek to the clicked span's position
+    if (isReplay) {
+      const idx = playback.allSpans.findIndex((s: { id: string }) => s.id === spanId);
+      if (idx >= 0) {
+        playbackControls.seekTo(idx);
+      }
+    }
   }
 
   const errorCount = bundle.spans.filter((span) => span.error).length;
@@ -79,9 +103,18 @@ export function RunViewer({ bundle }: RunViewerProps) {
           height={graph.height}
           selectedSpanId={selectedSpan.id}
           onSelectSpan={handleSelectSpan}
+          visibleSpanIds={isReplay ? playback.visibleSpanIds : undefined}
         />
         <SpanInspector span={selectedSpan} />
       </div>
+
+      {isReplay ? (
+        <TransportControls
+          state={playback}
+          controls={playbackControls}
+          traceIsRunning={bundle.trace.status === "running"}
+        />
+      ) : null}
     </div>
   );
 }
