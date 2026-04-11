@@ -1,9 +1,9 @@
 "use client";
 
-import { startTransition, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { TraceSummary } from "@agent-debugger/engine";
+import type { TraceSummary, TraceStatus } from "@agent-debugger/engine";
 import { formatDate, formatDuration, formatTokens } from "../lib/format";
 
 interface DashboardProps {
@@ -19,6 +19,36 @@ export function Dashboard({ initialTraces }: DashboardProps) {
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [deletingTraceId, setDeletingTraceId] = useState<string | null>(null);
+
+  // Subscribe to live trace events via SSE
+  useEffect(() => {
+    const eventSource = new EventSource("/api/traces/stream");
+
+    eventSource.addEventListener("trace:created", (event) => {
+      try {
+        const summary: TraceSummary = JSON.parse(event.data);
+        setTraces((current) => [summary, ...current.filter((t) => t.id !== summary.id)]);
+      } catch {
+        // ignore parse errors
+      }
+    });
+
+    eventSource.addEventListener("trace:status", (event) => {
+      try {
+        const { traceId, status: newStatus } = JSON.parse(event.data) as {
+          traceId: string;
+          status: TraceStatus;
+        };
+        setTraces((current) =>
+          current.map((t) => (t.id === traceId ? { ...t, status: newStatus } : t)),
+        );
+      } catch {
+        // ignore parse errors
+      }
+    });
+
+    return () => eventSource.close();
+  }, []);
 
   async function refreshTraces(nextFramework = framework, nextStatus = status, nextSearch = search) {
     const params = new URLSearchParams();
@@ -219,7 +249,7 @@ export function Dashboard({ initialTraces }: DashboardProps) {
                 </Link>
                 <p className="text-sm text-slate-200">{trace.framework}</p>
                 <p
-                  className={`text-sm ${
+                  className={`flex items-center gap-1.5 text-sm ${
                     trace.status === "error"
                       ? "text-rose-300"
                       : trace.status === "running"
@@ -227,6 +257,9 @@ export function Dashboard({ initialTraces }: DashboardProps) {
                         : "text-tide"
                   }`}
                 >
+                  {trace.status === "running" ? (
+                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                  ) : null}
                   {trace.status}
                 </p>
                 <p className="text-sm text-slate-200">{formatDate(trace.startedAt)}</p>
