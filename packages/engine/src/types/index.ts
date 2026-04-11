@@ -149,6 +149,12 @@ export interface TraceAdapter {
   normalize(input: unknown): TraceBundle;
 }
 
+export type SpanEvent =
+  | { type: "span:added"; traceId: string; span: SpanRecord }
+  | { type: "span:updated"; traceId: string; span: SpanRecord }
+  | { type: "trace:status"; traceId: string; status: TraceStatus }
+  | { type: "trace:created"; summary: TraceSummary };
+
 export interface TraceStore {
   importTrace(input: unknown, sourceName: string): Promise<{ traceId: string }>;
   listTraces(filters?: TraceListFilters): Promise<TraceSummary[]>;
