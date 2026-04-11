@@ -186,7 +186,7 @@ export function usePlaybackEngine({
   const visibleSpanIds = useMemo(() => {
     const ids = new Set<string>();
     for (let i = 0; i <= cursor && i < allSpans.length; i++) {
-      ids.add(allSpans[i].id);
+      ids.add(allSpans[i]!.id);
     }
     return ids;
   }, [allSpans, cursor]);

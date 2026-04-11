@@ -11,6 +11,7 @@ interface TraceGraphProps {
   height: number;
   selectedSpanId: string;
   onSelectSpan: (spanId: string) => void;
+  visibleSpanIds?: Set<string>;
 }
 
 export function TraceGraph({
@@ -20,8 +21,10 @@ export function TraceGraph({
   height,
   selectedSpanId,
   onSelectSpan,
+  visibleSpanIds,
 }: TraceGraphProps) {
   const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+  const isGhost = (id: string) => visibleSpanIds != null && !visibleSpanIds.has(id);
 
   return (
     <div className="overflow-auto rounded-[28px] border border-white/10 bg-[#071018]/80 shadow-panel">
@@ -47,13 +50,15 @@ export function TraceGraph({
             const y2 = target.y + target.height / 2;
             const midX = (x1 + x2) / 2;
 
+            const edgeGhost = isGhost(edge.source) || isGhost(edge.target);
+
             return (
-              <g key={edge.id}>
+              <g key={edge.id} style={edgeGhost ? { opacity: 0.15 } : undefined}>
                 <path
                   d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
                   fill="none"
                   stroke={edge.kind === "primary" ? "#41536c" : "#facc15"}
-                  strokeDasharray={edge.kind === "primary" ? undefined : "7 5"}
+                  strokeDasharray={edgeGhost || edge.kind !== "primary" ? "7 5" : undefined}
                   strokeWidth={edge.kind === "primary" ? 1.4 : 1.8}
                 />
                 {edge.label ? (
@@ -72,25 +77,31 @@ export function TraceGraph({
           })}
         </svg>
 
-        {nodes.map((node) => (
-          <button
-            key={node.id}
-            type="button"
-            onClick={() => onSelectSpan(node.id)}
-            className="absolute rounded-[22px] bg-transparent text-left"
-            style={{
-              left: node.x,
-              top: node.y,
-              width: node.width,
-              height: node.height,
-            }}
-          >
-            <GraphNodeBody
-              span={node.span}
-              selected={node.id === selectedSpanId}
-            />
-          </button>
-        ))}
+        {nodes.map((node) => {
+          const ghost = isGhost(node.id);
+          return (
+            <button
+              key={node.id}
+              type="button"
+              onClick={ghost ? undefined : () => onSelectSpan(node.id)}
+              disabled={ghost}
+              className="absolute rounded-[22px] bg-transparent text-left"
+              style={{
+                left: node.x,
+                top: node.y,
+                width: node.width,
+                height: node.height,
+                opacity: ghost ? 0.2 : 1,
+                pointerEvents: ghost ? "none" : undefined,
+              }}
+            >
+              <GraphNodeBody
+                span={node.span}
+                selected={!ghost && node.id === selectedSpanId}
+              />
+            </button>
+          );
+        })}
       </div>
     </div>
   );
