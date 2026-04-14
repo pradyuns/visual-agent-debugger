@@ -1,5 +1,11 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import {
+  edgeRecordSchema,
+  spanRecordSchema,
+  traceFrameworkSchema,
+  type SpanRecord,
+} from "@agent-debugger/engine";
 import { getTraceStore } from "../../../lib/store";
 import { toErrorResponse } from "../../../lib/errors";
 
@@ -9,50 +15,19 @@ const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Reuse the canonical span/edge schemas so the writer (ingest) is as strict as
+// the reader (GET /api/traces/:id). In particular this ensures `payload` goes
+// through the discriminated union keyed on `kind`, instead of accepting any
+// record and poisoning the store with data that later fails to re-read.
+const ingestSpanSchema = spanRecordSchema.omit({ traceId: true });
+const ingestEdgeSchema = edgeRecordSchema.omit({ traceId: true });
+
 const ingestSchema = z.object({
   traceId: z.string().optional(),
   traceName: z.string().optional(),
-  framework: z.enum(["agents-sdk", "raw"]).optional(),
-  spans: z
-    .array(
-      z.object({
-        id: z.string(),
-        traceId: z.string().optional(),
-        parentSpanId: z.string().optional(),
-        kind: z.enum(["root", "agent", "llm", "tool", "handoff", "retrieval", "guardrail", "custom"]),
-        name: z.string(),
-        status: z.enum(["ok", "error", "running"]),
-        provenance: z.enum(["recorded", "simulated", "live", "edited"]),
-        startedAt: z.number(),
-        endedAt: z.number().optional(),
-        latencyMs: z.number().optional(),
-        error: z
-          .object({
-            message: z.string(),
-            type: z.string().optional(),
-            stack: z.string().optional(),
-            code: z.string().optional(),
-            retryable: z.boolean().optional(),
-          })
-          .optional(),
-        stateSnapshot: z.record(z.unknown()).optional(),
-        payload: z.record(z.unknown()),
-        raw: z.unknown().optional(),
-      }),
-    )
-    .min(1),
-  edges: z
-    .array(
-      z.object({
-        id: z.string(),
-        traceId: z.string().optional(),
-        fromSpanId: z.string(),
-        toSpanId: z.string(),
-        kind: z.enum(["handoff", "retry", "dependency", "correlation"]),
-        metadata: z.record(z.unknown()).optional(),
-      }),
-    )
-    .optional(),
+  framework: traceFrameworkSchema.optional(),
+  spans: z.array(ingestSpanSchema).min(1),
+  edges: z.array(ingestEdgeSchema).optional(),
 });
 
 function normalizeHost(value: string) {
@@ -170,13 +145,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const spans = parsed.spans.map((s) => ({
-      ...s,
-      traceId,
-    }));
+    const spans: SpanRecord[] = parsed.spans.map((s) => ({ ...s, traceId }));
 
     const store = getTraceStore();
-    const result = await store.upsertSpans(traceId, spans as any, {
+    const result = await store.upsertSpans(traceId, spans, {
       traceName: parsed.traceName,
       framework: parsed.framework,
     });

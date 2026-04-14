@@ -32,9 +32,15 @@ export function getTraceStore() {
       if (fs.existsSync(indexPath)) {
         migrateFromFileStore(dataDir, store, indexPath);
       }
-    } catch {
+    } catch (err) {
       // better-sqlite3 native module may not load in all environments
-      console.warn("SQLite unavailable, falling back to file-backed store");
+      const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      console.warn(
+        `SQLite unavailable, falling back to file-backed store (${reason})`,
+      );
+      if (err instanceof Error && err.stack) {
+        console.warn(err.stack);
+      }
       store = createTraceStore({ dataDir });
     }
 
