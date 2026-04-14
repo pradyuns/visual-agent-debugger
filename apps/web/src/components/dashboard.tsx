@@ -19,6 +19,8 @@ export function Dashboard({ initialTraces }: DashboardProps) {
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [deletingTraceId, setDeletingTraceId] = useState<string | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareSelection, setCompareSelection] = useState<string[]>([]);
 
   // Subscribe to live trace events via SSE
   useEffect(() => {
@@ -49,6 +51,12 @@ export function Dashboard({ initialTraces }: DashboardProps) {
 
     return () => eventSource.close();
   }, []);
+
+  useEffect(() => {
+    setCompareSelection((current) =>
+      current.filter((traceId) => traces.some((trace) => trace.id === traceId)),
+    );
+  }, [traces]);
 
   async function refreshTraces(nextFramework = framework, nextStatus = status, nextSearch = search) {
     const params = new URLSearchParams();
@@ -154,15 +162,31 @@ export function Dashboard({ initialTraces }: DashboardProps) {
               get a local run list, graph view, and typed span inspector.
             </p>
           </div>
-          <label className="group relative flex cursor-pointer items-center justify-center rounded-[24px] border border-ember/60 bg-gradient-to-br from-ember/90 to-brass/80 px-6 py-4 text-sm font-medium text-ink transition hover:scale-[1.01]">
-            <input
-              className="hidden"
-              type="file"
-              accept="application/json"
-              onChange={(event) => void handleUpload(event.target.files)}
-            />
-            {isImporting ? "Importing trace..." : "Import trace JSON"}
-          </label>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setCompareMode(!compareMode);
+                setCompareSelection([]);
+              }}
+              className={`rounded-[24px] border px-6 py-4 text-sm font-medium transition hover:scale-[1.01] ${
+                compareMode
+                  ? "border-tide/60 bg-tide/20 text-tide"
+                  : "border-white/20 bg-white/5 text-smoke"
+              }`}
+            >
+              {compareMode ? "Cancel Compare" : "Compare"}
+            </button>
+            <label className="group relative flex cursor-pointer items-center justify-center rounded-[24px] border border-ember/60 bg-gradient-to-br from-ember/90 to-brass/80 px-6 py-4 text-sm font-medium text-ink transition hover:scale-[1.01]">
+              <input
+                className="hidden"
+                type="file"
+                accept="application/json"
+                onChange={(event) => void handleUpload(event.target.files)}
+              />
+              {isImporting ? "Importing trace..." : "Import trace JSON"}
+            </label>
+          </div>
         </div>
         <div className="grid gap-4 lg:grid-cols-[1fr,160px,160px]">
           <input
@@ -211,7 +235,14 @@ export function Dashboard({ initialTraces }: DashboardProps) {
       </header>
 
       <section className="rounded-[28px] border border-white/10 bg-slate/65 shadow-panel backdrop-blur">
-        <div className="grid grid-cols-[2.1fr,1fr,1fr,1fr,1fr,auto] gap-4 border-b border-white/10 px-5 py-4 text-xs uppercase tracking-[0.24em] text-slate-300">
+        <div
+          className={`grid gap-4 border-b border-white/10 px-5 py-4 text-xs uppercase tracking-[0.24em] text-slate-300 ${
+            compareMode
+              ? "grid-cols-[auto,2.1fr,1fr,1fr,1fr,1fr,auto]"
+              : "grid-cols-[2.1fr,1fr,1fr,1fr,1fr,auto]"
+          }`}
+        >
+          {compareMode ? <span>Select</span> : null}
           <span>Run</span>
           <span>Framework</span>
           <span>Status</span>
@@ -234,8 +265,34 @@ export function Dashboard({ initialTraces }: DashboardProps) {
             {traces.map((trace) => (
               <div
                 key={trace.id}
-                className="grid grid-cols-[2.1fr,1fr,1fr,1fr,1fr,auto] gap-4 px-5 py-5 transition hover:bg-white/5"
+                className={`grid gap-4 px-5 py-5 transition hover:bg-white/5 ${
+                  compareMode
+                    ? "grid-cols-[auto,2.1fr,1fr,1fr,1fr,1fr,auto]"
+                    : "grid-cols-[2.1fr,1fr,1fr,1fr,1fr,auto]"
+                }`}
               >
+                {compareMode ? (
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={compareSelection.includes(trace.id)}
+                      onChange={() => {
+                        setCompareSelection((prev) =>
+                          prev.includes(trace.id)
+                            ? prev.filter((id) => id !== trace.id)
+                            : prev.length < 2
+                              ? [...prev, trace.id]
+                              : prev,
+                        );
+                      }}
+                      disabled={
+                        !compareSelection.includes(trace.id) &&
+                        compareSelection.length >= 2
+                      }
+                      className="h-4 w-4 rounded border-white/20 bg-white/10 accent-tide"
+                    />
+                  </div>
+                ) : null}
                 <Link href={`/runs/${trace.id}`} className="space-y-2">
                   <p className="text-base font-medium text-smoke">{trace.name}</p>
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-400">
@@ -275,6 +332,26 @@ export function Dashboard({ initialTraces }: DashboardProps) {
           </div>
         )}
       </section>
+
+      {compareMode && compareSelection.length > 0 ? (
+        <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-[24px] border border-white/10 bg-ink/90 px-6 py-4 shadow-panel backdrop-blur">
+          <p className="text-sm text-smoke">
+            {compareSelection.length} of 2 selected
+          </p>
+          <button
+            type="button"
+            disabled={compareSelection.length !== 2}
+            onClick={() => {
+              router.push(
+                `/compare?left=${compareSelection[0]}&right=${compareSelection[1]}`,
+              );
+            }}
+            className="rounded-[20px] border border-tide/60 bg-tide/20 px-5 py-2.5 text-sm font-medium text-tide transition hover:bg-tide/30 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Compare
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

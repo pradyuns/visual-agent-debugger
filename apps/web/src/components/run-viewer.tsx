@@ -117,6 +117,30 @@ export function RunViewer({ bundle }: RunViewerProps) {
                 Live
               </span>
             ) : null}
+            {!isRunning && !isReplay ? (
+              <button
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.set("replay", "true");
+                  router.replace(`?${params.toString()}`, { scroll: false });
+                }}
+                className="rounded-[24px] border border-tide/60 bg-tide/20 px-4 py-2 text-xs uppercase tracking-[0.18em] text-tide transition-colors hover:bg-tide/30"
+              >
+                Replay
+              </button>
+            ) : null}
+            {isReplay ? (
+              <button
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.delete("replay");
+                  router.replace(`?${params.toString()}`, { scroll: false });
+                }}
+                className="rounded-[24px] border border-ember/60 bg-ember/20 px-4 py-2 text-xs uppercase tracking-[0.18em] text-ember transition-colors hover:bg-ember/30"
+              >
+                Exit Replay
+              </button>
+            ) : null}
           </h1>
           <p className="max-w-2xl text-sm leading-6 text-slate-300">
             Graph view for imported spans, with typed payload inspection and
