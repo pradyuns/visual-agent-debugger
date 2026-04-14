@@ -19,6 +19,8 @@ import { normalizeTraceBundle } from "../validation/normalize";
 import { rawBundleFileSchema, traceSummaryListSchema } from "../validation/schema";
 import { TraceImportError } from "../validation/errors";
 import { getIndexPath, getRawSourcePath, getTraceBundlePath, getTraceDir, resolveDataDir } from "./paths";
+import { createRedactor, type RedactionConfig } from "../redaction/redactor";
+import { getPatternsByNames } from "../redaction/patterns";
 
 interface LocalTraceStoreOptions {
   adapters?: TraceAdapter[];
@@ -35,10 +37,20 @@ export class LocalTraceStore implements TraceStore {
   private readonly dataDir: string;
   private writeQueue: Promise<void> = Promise.resolve();
   private readonly emitter = new EventEmitter();
+  private readonly redactor?: ReturnType<typeof createRedactor>;
 
   constructor(options: LocalTraceStoreOptions = {}) {
     this.adapters = options.adapters ?? defaultAdapters;
     this.dataDir = resolveDataDir(options.dataDir);
+
+    const redactEnv = process.env.AGENT_DEBUGGER_REDACT;
+    if (redactEnv) {
+      const names = redactEnv.split(",").map((s) => s.trim());
+      const patterns = getPatternsByNames(names);
+      if (patterns.length > 0) {
+        this.redactor = createRedactor({ patterns });
+      }
+    }
   }
 
   on(event: string, listener: (evt: SpanEvent) => void) {
@@ -64,9 +76,23 @@ export class LocalTraceStore implements TraceStore {
       );
     }
 
-    const normalized = normalizeTraceBundle(adapter.normalize(input), {
+    let normalized = normalizeTraceBundle(adapter.normalize(input), {
       rawSource: input,
     });
+
+    if (this.redactor) {
+      normalized = {
+        ...normalized,
+        trace: {
+          ...normalized.trace,
+          name: this.redactor.redact(normalized.trace.name),
+          tags: this.redactor.redact(normalized.trace.tags),
+          metadata: this.redactor.redact(normalized.trace.metadata),
+        },
+        spans: this.redactor.redact(normalized.spans),
+        rawSource: this.redactor.redact(normalized.rawSource),
+      };
+    }
 
     return this.enqueueWrite(async () => {
       await this.writeTraceFiles(normalized);
@@ -104,7 +130,8 @@ export class LocalTraceStore implements TraceStore {
       let spansUpdated = 0;
       const events: SpanEvent[] = [];
 
-      for (const span of spans) {
+      const redactedSpans = this.redactor ? this.redactor.redact(spans) : spans;
+      for (const span of redactedSpans) {
         if (existingSpanMap.has(span.id)) {
           existingSpanMap.set(span.id, span);
           spansUpdated++;

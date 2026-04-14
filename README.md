@@ -26,6 +26,18 @@ For a quick smoke test, import one of these fixtures from the dashboard:
 The app stores traces under `AGENT_DEBUGGER_HOME` when that environment variable is
 set. Otherwise it defaults to `~/.agent-debugger`.
 
+## PII Redaction
+
+Set `AGENT_DEBUGGER_REDACT` to enable automatic redaction of sensitive data at import
+time. The value is a comma-separated list of pattern names, or `all` to enable all
+built-in patterns.
+
+```bash
+AGENT_DEBUGGER_REDACT=all pnpm dev
+```
+
+Built-in patterns: `email`, `phone`, `api-key`, `ssn`, `credit-card`, `ipv4`.
+
 ## Supported Formats
 
 - Canonical raw trace bundles that match the engine schema
@@ -51,10 +63,14 @@ pnpm test:e2e
 - Local-only trace import and storage
 - Dashboard filtering by framework, status, and name
 - Single-run graph view with typed inspector tabs
+- Replay mode with step-by-step span playback, transport controls, and ghost rendering
+- Live streaming via SSE for running traces
+- Trace comparison: select two traces and view side-by-side diffs
+- PII redaction via `AGENT_DEBUGGER_REDACT` environment variable
 - Delete flow and missing-trace page
 
 ## Current Limitations
 
-- The metadata index is file-backed for now; SQLite is deferred because the local Node environment did not support the planned native driver cleanly.
-- Replay, compare, live streaming, and automatic redaction are not implemented in this MVP.
+- Storage uses SQLite via `better-sqlite3`. Existing file-backed traces are migrated automatically on first startup.
+- Trace comparison is available via the Compare button on the dashboard.
 - The graph view is a custom SVG layout rather than React Flow to keep the build stable in this environment.
