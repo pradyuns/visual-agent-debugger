@@ -57,20 +57,3 @@ Playwright coverage is included for the import, viewer, delete, and missing-trac
 pnpm exec playwright install chromium
 pnpm test:e2e
 ```
-
-## Current Scope
-
-- Local-only trace import and storage
-- Dashboard filtering by framework, status, and name
-- Single-run graph view with typed inspector tabs
-- Replay mode with step-by-step span playback, transport controls, and ghost rendering
-- Live streaming via SSE for running traces
-- Trace comparison: select two traces and view side-by-side diffs
-- PII redaction via `AGENT_DEBUGGER_REDACT` environment variable
-- Delete flow and missing-trace page
-
-## Current Limitations
-
-- Storage uses SQLite via `better-sqlite3`. Existing file-backed traces are migrated automatically on first startup.
-- Trace comparison is available via the Compare button on the dashboard.
-- The graph view is a custom SVG layout rather than React Flow to keep the build stable in this environment.
