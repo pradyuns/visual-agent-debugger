@@ -6,4 +6,8 @@ export * from "./adapters";
 export * from "./adapters/raw";
 export * from "./adapters/agents-sdk";
 export * from "./queries/derived";
+export * from "./queries/compare";
+export * from "./redaction";
 export * from "./storage/trace-store";
+export { SqliteTraceStore } from "./storage/sqlite-store";
+export type { SqliteTraceStoreOptions } from "./storage/sqlite-store";
