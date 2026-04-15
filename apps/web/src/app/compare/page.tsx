@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getTraceStore } from "../../lib/store";
-import { compareTraces } from "@agent-debugger/engine";
+import { compareTraces } from "../../lib/engine";
 import { TraceComparisonView } from "../../components/trace-comparison";
 
 export const dynamic = "force-dynamic";

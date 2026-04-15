@@ -1,4 +1,4 @@
-import { TraceImportError } from "@agent-debugger/engine";
+import { TraceImportError } from "./engine";
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
 

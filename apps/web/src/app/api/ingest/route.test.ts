@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { authorizeIngestRequest } from "./route";
+import { authorizeIngestRequest } from "../../../lib/ingest-auth";
 
 function makeRequest(url: string, headers: Record<string, string> = {}) {
   return new Request(url, {

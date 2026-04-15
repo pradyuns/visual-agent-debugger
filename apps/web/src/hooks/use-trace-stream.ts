@@ -14,6 +14,11 @@ interface UseTraceStreamParams {
   onStatusChange?: (status: TraceStatus) => void;
 }
 
+function logSseParseError(eventType: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`Failed to parse SSE ${eventType} event: ${message}`);
+}
+
 export function useTraceStream({
   traceId,
   enabled,
@@ -47,8 +52,8 @@ export function useTraceStream({
       try {
         const bundle: TraceBundle = JSON.parse(event.data);
         onSnapshotRef.current?.(bundle);
-      } catch {
-        // ignore parse errors
+      } catch (error) {
+        logSseParseError("snapshot", error);
       }
     });
 
@@ -56,8 +61,8 @@ export function useTraceStream({
       try {
         const span: SpanRecord = JSON.parse(event.data);
         controlsRef.current.appendSpans([span]);
-      } catch {
-        // ignore parse errors
+      } catch (error) {
+        logSseParseError("span", error);
       }
     });
 
@@ -65,8 +70,8 @@ export function useTraceStream({
       try {
         const { status } = JSON.parse(event.data) as { status: TraceStatus };
         onStatusRef.current?.(status);
-      } catch {
-        // ignore parse errors
+      } catch (error) {
+        logSseParseError("status", error);
       }
     });
 

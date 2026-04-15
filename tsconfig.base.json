@@ -15,12 +15,6 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-    "noUncheckedIndexedAccess": true,
-    "baseUrl": ".",
-    "paths": {
-      "@agent-debugger/engine": [
-        "packages/engine/src/index.ts"
-      ]
-    }
+    "noUncheckedIndexedAccess": true
   }
 }

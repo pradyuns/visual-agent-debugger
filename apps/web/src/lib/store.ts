@@ -5,7 +5,7 @@ import {
   SqliteTraceStore,
   createTraceStore,
   type TraceBundle,
-} from "@agent-debugger/engine";
+} from "./engine";
 
 type Store = SqliteTraceStore | ReturnType<typeof createTraceStore>;
 
@@ -80,13 +80,19 @@ function migrateFromFileStore(
         const bundle = { ...bundleRaw, rawSource } as TraceBundle;
 
         store.importBundle(bundle);
-      } catch {
-        // Skip invalid trace files
+      } catch (err) {
+        const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+        console.warn(
+          `Skipping invalid migrated trace "${entry.id}" (${reason})`,
+        );
       }
     }
 
     fs.renameSync(indexPath, `${indexPath}.migrated`);
-  } catch {
-    // If migration fails entirely, continue with empty SQLite store
+  } catch (err) {
+    const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    console.warn(
+      `Failed to migrate traces from file-backed store (${reason}); continuing with SQLite only.`,
+    );
   }
 }

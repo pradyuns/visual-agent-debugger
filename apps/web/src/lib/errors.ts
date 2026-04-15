@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { TraceImportError } from "@agent-debugger/engine";
+import { TraceImportError } from "./engine";
 
 /**
  * Duck-typed detector for TraceImportError.

@@ -4,10 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "prebuild": "node ../../scripts/check-node-version.mjs",
     "build": "next build",
     "dev": "next dev",
     "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --root ../.. --passWithNoTests apps/web/src",
+    "test": "vitest run --config vitest.config.ts --passWithNoTests",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

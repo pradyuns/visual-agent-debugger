@@ -36,7 +36,11 @@ export function TraceGraph({
           minHeight: 620,
         }}
       >
-        <svg className="absolute inset-0 h-full w-full">
+        <svg
+          className="absolute inset-0 h-full w-full"
+          role="img"
+          aria-label="Trace graph"
+        >
           {edges.map((edge) => {
             const source = nodeMap.get(edge.source);
             const target = nodeMap.get(edge.target);
@@ -85,6 +89,7 @@ export function TraceGraph({
               type="button"
               onClick={ghost ? undefined : () => onSelectSpan(node.id)}
               disabled={ghost}
+              aria-label={`Select span ${node.span.name}`}
               className="absolute rounded-[22px] bg-transparent text-left"
               style={{
                 left: node.x,

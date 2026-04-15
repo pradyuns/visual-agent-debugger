@@ -10,6 +10,8 @@ Local-first debugger for inspecting, replaying, and comparing AI agent execution
 
 ## Getting Started
 
+Use an LTS Node.js runtime (`18`, `20`, or `22`). Node `23` is not supported by this repo.
+
 ```bash
 pnpm install
 pnpm dev

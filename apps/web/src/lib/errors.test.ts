@@ -1,4 +1,4 @@
-import { TraceImportError } from "@agent-debugger/engine";
+import { TraceImportError } from "./engine";
 import { isTraceNotFoundError, toErrorResponse } from "./errors";
 
 describe("isTraceNotFoundError", () => {

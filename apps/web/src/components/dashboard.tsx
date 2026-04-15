@@ -10,6 +10,11 @@ interface DashboardProps {
   initialTraces: TraceSummary[];
 }
 
+function logSseParseError(eventType: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`Failed to parse dashboard SSE ${eventType} event: ${message}`);
+}
+
 export function Dashboard({ initialTraces }: DashboardProps) {
   const router = useRouter();
   const [traces, setTraces] = useState(initialTraces);
@@ -30,8 +35,8 @@ export function Dashboard({ initialTraces }: DashboardProps) {
       try {
         const summary: TraceSummary = JSON.parse(event.data);
         setTraces((current) => [summary, ...current.filter((t) => t.id !== summary.id)]);
-      } catch {
-        // ignore parse errors
+      } catch (error) {
+        logSseParseError("trace:created", error);
       }
     });
 
@@ -44,8 +49,8 @@ export function Dashboard({ initialTraces }: DashboardProps) {
         setTraces((current) =>
           current.map((t) => (t.id === traceId ? { ...t, status: newStatus } : t)),
         );
-      } catch {
-        // ignore parse errors
+      } catch (error) {
+        logSseParseError("trace:status", error);
       }
     });
 

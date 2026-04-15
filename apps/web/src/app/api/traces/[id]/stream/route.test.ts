@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SpanRecord } from "@agent-debugger/engine";
-import { formatTraceStreamEvent } from "./route";
+import { formatTraceStreamEvent } from "../../../../../lib/trace-stream";
 
 function makeSpan(id: string): SpanRecord {
   return {
