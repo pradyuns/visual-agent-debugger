@@ -1,0 +1,94 @@
+{
+  "data": [
+    {
+      "object": "trace",
+      "id": "trace_fixture",
+      "workflow_name": "SDK fixture",
+      "group_id": "group_fixture",
+      "metadata": {
+        "environment": "test"
+      }
+    },
+    {
+      "object": "trace.span",
+      "id": "span_agent",
+      "trace_id": "trace_fixture",
+      "parent_id": null,
+      "started_at": "2026-11-06T16:12:33.382605+00:00",
+      "ended_at": "2026-11-06T16:12:33.382972+00:00",
+      "span_data": {
+        "type": "agent",
+        "name": "Triage",
+        "handoffs": null,
+        "tools": null,
+        "output_type": null
+      },
+      "error": null
+    },
+    {
+      "object": "trace.span",
+      "id": "span_generation",
+      "trace_id": "trace_fixture",
+      "parent_id": "span_agent",
+      "started_at": "2026-11-06T16:12:33.382921+00:00",
+      "ended_at": "2026-11-06T16:12:33.382934+00:00",
+      "span_data": {
+        "type": "generation",
+        "input": [
+          {
+            "role": "user",
+            "content": "Hello"
+          }
+        ],
+        "output": [
+          {
+            "role": "assistant",
+            "content": "Hi"
+          }
+        ],
+        "model": "example-model",
+        "model_config": null,
+        "usage": {
+          "input_tokens": 12,
+          "output_tokens": 4
+        }
+      },
+      "error": null
+    },
+    {
+      "object": "trace.span",
+      "id": "span_function",
+      "trace_id": "trace_fixture",
+      "parent_id": "span_agent",
+      "started_at": "2026-11-06T16:12:33.382952+00:00",
+      "ended_at": "2026-11-06T16:12:33.382957+00:00",
+      "span_data": {
+        "type": "function",
+        "name": "lookup",
+        "input": "question",
+        "output": "answer",
+        "mcp_data": null
+      },
+      "error": {
+        "message": "example error",
+        "data": {
+          "fixture": true
+        }
+      }
+    },
+    {
+      "object": "trace.span",
+      "id": "span_handoff",
+      "trace_id": "trace_fixture",
+      "parent_id": "span_agent",
+      "started_at": "2026-11-06T16:12:33.382967+00:00",
+      "ended_at": "2026-11-06T16:12:33.382970+00:00",
+      "span_data": {
+        "type": "handoff",
+        "from_agent": "Triage",
+        "to_agent": "Billing"
+      },
+      "error": null
+    }
+  ]
+}

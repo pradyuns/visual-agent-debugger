@@ -64,6 +64,20 @@ describe("createRedactor", () => {
     expect(result.nested.deep.ssn).toBe("my ssn is [REDACTED:ssn]");
   });
 
+  it("redacts and preserves own prototype-named keys without changing object prototypes", () => {
+    const input = JSON.parse('{"__proto__":{"email":"user@example.com"},"constructor":{"email":"other@example.com"}}');
+    const result = redactor.redact(input);
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+    expect(Object.prototype.hasOwnProperty.call(result, "__proto__")).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(result, "constructor")).toBe(true);
+    expect(result["__proto__"].email).toBe("[REDACTED:email]");
+    expect(result.constructor.email).toBe("[REDACTED:email]");
+    expect(JSON.parse(JSON.stringify(result))).toEqual({
+      ["__proto__"]: { email: "[REDACTED:email]" },
+      constructor: { email: "[REDACTED:email]" },
+    });
+  });
+
   it("deep walks arrays", () => {
     const input = ["user@test.com", { ip: "10.0.0.1" }];
     const result = redactor.redact(input);
