@@ -78,3 +78,19 @@ test("imports an Agents SDK handoff trace and exposes handoff payload details", 
   await page.getByRole("button", { name: "raw" }).click();
   await expect(page.getByText('"toSpanId": "agent_billing"')).toBeVisible();
 });
+
+test("imports and reloads Python SDK exported records", async ({ page }) => {
+  const sdkFixture = path.resolve(
+    process.cwd(),
+    "fixtures/traces/agents-sdk/python-sdk-0.23.1-export.json",
+  );
+  await page.goto("/");
+  await page.locator('input[type="file"]').setInputFiles(sdkFixture);
+  await page.waitForURL(/\/runs\//, { timeout: 15_000 });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "SDK fixture" })).toBeVisible();
+  await page.getByRole("button", { name: "Select span lookup" }).click();
+  await page.getByRole("button", { name: "payload" }).click();
+  await expect(page.getByText('"input": "question"')).toBeVisible();
+  await expect(page.getByText('"output": "answer"')).toBeVisible();
+});

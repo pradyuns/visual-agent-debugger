@@ -167,6 +167,7 @@ describe("normalizeTraceBundle", () => {
     const edges: TraceBundle["edges"] = [{ id: "link", traceId: "trace_input", fromSpanId: "__proto__", toSpanId: "constructor", kind: "dependency", metadata: {} }];
     const bundle = normalizeTraceBundle(createBundle(spans, edges));
     const graph = buildTraceGraphData(bundle);
+    expect(Object.getPrototypeOf(graph.childrenByParent)).toBe(Object.prototype);
     expect(graph.childrenByParent["__proto__"]).toEqual(["constructor"]);
     expect(graph.childrenByParent["constructor"]).toEqual(["leaf"]);
     expect(bundle.edges[0]).toMatchObject({ fromSpanId: "__proto__", toSpanId: "constructor" });
