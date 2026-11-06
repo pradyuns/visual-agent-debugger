@@ -39,7 +39,10 @@ function deepRedact(
   if (value !== null && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value)) {
-      out[key] = deepRedact(val, patterns, placeholder);
+      Object.defineProperty(out, key, {
+        value: deepRedact(val, patterns, placeholder),
+        enumerable: true, writable: true, configurable: true,
+      });
     }
     return out;
   }

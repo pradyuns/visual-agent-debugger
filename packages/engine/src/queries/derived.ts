@@ -1,7 +1,7 @@
 import type { SpanRecord, TraceBundle, TraceGraphData } from "../types";
 
 export function buildChildrenByParent(spans: SpanRecord[]): Record<string, string[]> {
-  const childrenByParent: Record<string, string[]> = {};
+  const childrenByParent: Record<string, string[]> = Object.create(null);
 
   for (const span of spans) {
     if (!span.parentSpanId) {

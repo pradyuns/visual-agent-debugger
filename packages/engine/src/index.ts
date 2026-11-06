@@ -5,6 +5,7 @@ export * from "./validation/schema";
 export * from "./adapters";
 export * from "./adapters/raw";
 export * from "./adapters/agents-sdk";
+export * from "./adapters/agents-sdk-native";
 export * from "./queries/derived";
 export * from "./queries/compare";
 export * from "./redaction";

@@ -9,6 +9,9 @@ import type {
 import { traceBundleSchema } from "./schema";
 import { TraceImportError } from "./errors";
 
+export const MAX_TRACE_SPANS = 10_000;
+export const MAX_TRACE_DEPTH = 512;
+
 interface NormalizeOptions {
   importedAt?: number;
   traceId?: string;
@@ -19,6 +22,9 @@ export function normalizeTraceBundle(
   input: TraceBundle,
   options: NormalizeOptions = {},
 ): TraceBundle {
+  if (input.spans.length > MAX_TRACE_SPANS) {
+    throw new TraceImportError("trace_too_large", `Trace exceeds the limit of ${MAX_TRACE_SPANS} spans.`);
+  }
   const importedAt = options.importedAt ?? Date.now();
   const traceId = options.traceId ?? ulid();
 
@@ -75,12 +81,10 @@ export function normalizeTraceBundle(
   let rootSpanId = input.trace.rootSpanId;
   if (rootCandidates.length !== 1 || !spanMap.has(rootSpanId)) {
     const syntheticRoot = buildSyntheticRoot(spans, traceId);
-    for (const rootCandidate of rootCandidates) {
-      const nextRootCandidate = {
-        ...rootCandidate,
-        parentSpanId: syntheticRoot.id,
-      };
-      const index = spans.findIndex((span) => span.id === rootCandidate.id);
+    for (let index = 0; index < spans.length; index++) {
+      const span = spans[index]!;
+      if (span.parentSpanId !== undefined) continue;
+      const nextRootCandidate = { ...span, parentSpanId: syntheticRoot.id };
       spans[index] = nextRootCandidate;
       spanMap.set(nextRootCandidate.id, nextRootCandidate);
     }
@@ -179,35 +183,35 @@ function deriveStatus(spans: Array<Pick<SpanRecord, "status">>): TraceStatus {
 }
 
 function ensureAcyclic(spans: SpanRecord[]) {
-  const visited = new Set<string>();
-  const inFlight = new Set<string>();
+  const depths = new Map<string, number>();
   const spanMap = new Map(spans.map((span) => [span.id, span]));
 
-  function visit(spanId: string) {
-    if (visited.has(spanId)) {
-      return;
-    }
-    if (inFlight.has(spanId)) {
-      throw new TraceImportError(
-        "cycle_detected",
-        `Cycle detected while traversing span "${spanId}".`,
-      );
-    }
-
-    inFlight.add(spanId);
-    const span = spanMap.get(spanId);
-    if (!span) {
-      throw new TraceImportError("missing_span", `Missing span "${spanId}".`);
-    }
-    if (span.parentSpanId) {
-      visit(span.parentSpanId);
-    }
-    inFlight.delete(spanId);
-    visited.add(spanId);
-  }
-
   for (const span of spans) {
-    visit(span.id);
+    if (depths.has(span.id)) continue;
+    const path: string[] = [];
+    const inPath = new Set<string>();
+    let current: string | undefined = span.id;
+    while (current !== undefined && !depths.has(current)) {
+      if (inPath.has(current)) {
+        throw new TraceImportError("cycle_detected", `Cycle detected while traversing span "${current}".`);
+      }
+      const node: SpanRecord | undefined = spanMap.get(current);
+      if (!node) throw new TraceImportError("missing_span", `Missing span "${current}".`);
+      inPath.add(current);
+      path.push(current);
+      if (path.length > MAX_TRACE_DEPTH) {
+        throw new TraceImportError("trace_too_deep", `Trace exceeds the limit of ${MAX_TRACE_DEPTH} nested spans.`);
+      }
+      current = node.parentSpanId;
+    }
+    let depth = current === undefined ? 0 : depths.get(current)!;
+    while (path.length) {
+      depth++;
+      if (depth > MAX_TRACE_DEPTH) {
+        throw new TraceImportError("trace_too_deep", `Trace exceeds the limit of ${MAX_TRACE_DEPTH} nested spans.`);
+      }
+      depths.set(path.pop()!, depth);
+    }
   }
 }
 
